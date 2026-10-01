@@ -64,3 +64,21 @@ Nothing here is aspirational: every claim below was observed.
   must be http(s). Bare `/` is not a valid pattern (use `/*`).
 - Tests: 28 pass (matching, params, stripping, query, priority, specificity,
   determinism, validation rejections).
+
+## Phase 5 — PostgreSQL persistence
+
+- `apps/gateway/migrations/001..005`: pgcrypto, users, rate-limit and
+  circuit-breaker policy tables, routes, audit_logs, config_versions.
+  `src/scripts/migrate.ts` (up/down/reset; reset refuses production);
+  `src/scripts/seed.ts` (admin user, 2 rate-limit policies, 1 circuit policy,
+  4 sample routes, config v1; idempotent; refuses production and short
+  admin passwords).
+- `src/db.ts` (pool, `withTransaction`, health check), `src/db/routes.ts`
+  (CRUD with version bump on update), `src/db/users.ts`, `src/db/audit.ts`
+  (append-only + filtered list), `src/db/config-versions.ts` (monotonic
+  version counter). All queries parameterized.
+- Also fixed: added `"type": "module"` to gateway package.json (was missing,
+  breaking `node dist/...` ESM output); migrate/seed scripts read DATABASE_URL
+  directly instead of the full config.
+- Tests: 9 integration tests pass against a fresh `gateway_test` DB
+  (CRUD, ordering, rollback, audit, version bump, users).
