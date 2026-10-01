@@ -357,3 +357,30 @@ Nothing here is aspirational: every claim below was observed.
   100 concurrent clients x 40 requests: 259 req/s, 0 errors.
 - Honest notes in the doc: the limiter is Redis-only by design (no in-memory
   variant exists to compare against); numbers are environment-specific.
+
+## 2026-10-01 — docs + env fixes (61d2d47)
+
+- Wrote `docs/configuration.md`, `docs/api.md`, `docs/admin-ui.md`,
+  `docs/security.md`, `docs/deployment.md`, `docs/development.md`,
+  `docs/plugins.md`, and root `README.md` (features, quickstart, docs index,
+  commands, structure, tests, license).
+- Verifying every README command caught real bugs, all fixed:
+  - `.env` was never loaded: added `dotenv` + `src/env.ts` which loads the
+    nearest `.env` upward (skipped when `NODE_ENV=test` so tests stay
+    hermetic). `pnpm db:reset/migrate/seed` now work from a copied
+    `.env.example` with no shell env vars.
+  - `z.coerce.boolean()` parsed the string "false" as `true`: replaced with a
+    strict `bool()` parser (`true/1/yes`, `false/0/no`, else fail fast).
+    `TLS_ENABLED=false` previously enabled TLS.
+  - `pino-pretty` was missing despite `LOG_PRETTY=true` in `.env.example`:
+    added as a devDependency.
+  - Seed refused `.env.example`'s 8-char `ADMIN_PASSWORD` (min 12): dev default
+    is now `admin12345678` in `.env.example`, compose, README, and docs.
+- 2 new unit tests for boolean parsing (104 unit total). Verified after fixes:
+  `pnpm dev` boots from `.env` (`/health` ok, login works), admin-ui dev
+  serves 200, typecheck/lint/prettier clean, unit 104 pass, integration 58
+  pass, admin-ui 7 pass.
+- Environment note: the VM was replaced mid-session (pnpm, postgres, redis
+  binaries gone); reinstalled pnpm 10.34.6 via npm. Integration tests were
+  last run green before the reset; DB-backed commands re-verified after only
+  where possible without the databases.
