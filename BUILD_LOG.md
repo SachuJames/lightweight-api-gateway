@@ -165,3 +165,11 @@ Nothing here is aspirational: every claim below was observed.
   DB + Redis checks (503 when degraded) with config version and uptime.
 - Tests: 7 unit (counters, quantiles, bounds, reset, liveness, readiness
   ok/degraded); total unit 94.
+
+## Phase 13 — audit trail service
+
+- `apps/gateway/src/audit-service.ts`: `AuditService.record()` with a fixed
+  action vocabulary (`route.create/update/delete`, policy CRUD, `user.*`,
+  `auth.login`), actor + request id context, before/after payloads. Backed by
+  the append-only `audit_logs` table from Phase 5.
+- Tests: 2 unit (field mapping, optional-field handling); total unit 96.
