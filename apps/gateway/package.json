@@ -15,7 +15,8 @@
     "start": "node dist/index.js",
     "test:integration": "vitest run tests/integration",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:unit": "vitest run tests/unit"
+    "test:unit": "vitest run tests/unit",
+    "perf": "vitest run --config vitest.perf.config.ts"
   },
   "types": "./dist/index.d.ts",
   "version": "0.1.0",

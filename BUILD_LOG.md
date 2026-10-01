@@ -343,3 +343,17 @@ Nothing here is aspirational: every claim below was observed.
   B converges back onto A; both report the same config version.
 - 16 new tests, all passing. Totals: 102 unit + 58 integration = 160 gateway
   tests, plus 7 admin UI tests.
+
+## Phase 22 — performance benchmarks
+
+- `apps/gateway/tests/perf/latency.perf.ts` (run with
+  `pnpm --filter gateway perf`, excluded from unit/integration runs) measures
+  against real TCP servers and writes `docs/performance.md`.
+- Real numbers from this machine (2x Xeon 1.4GHz, Node 24, local PG/Redis):
+  proxy overhead p50 1.90ms over direct (3.94ms vs 2.04ms); route matching
+  1,182 matches/sec over 2000 routes (linear scan, scales with route count);
+  Redis Lua rate-limit checks 4,395/sec at p50 172us; config reload avg
+  13.2ms from DB bump + Redis publish to serving the new snapshot;
+  100 concurrent clients x 40 requests: 259 req/s, 0 errors.
+- Honest notes in the doc: the limiter is Redis-only by design (no in-memory
+  variant exists to compare against); numbers are environment-specific.
