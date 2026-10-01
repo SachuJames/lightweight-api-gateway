@@ -4,7 +4,7 @@
 #
 # Then open http://localhost:3000 (admin UI) and use the gateway at
 # http://localhost:8080. The seeded admin login is
-# admin@example.local / admin123 (override ADMIN_PASSWORD in production).
+# admin@example.local / admin12345678 (override ADMIN_PASSWORD in production).
 #
 # NOTE: the images below were not built or run in this repository's dev
 # environment (no container runtime there); only `docker compose config`
@@ -59,7 +59,7 @@ services:
       JWT_SECRET: dev-only-secret-not-for-production-use
       SEED_ON_START: 'true'
       ADMIN_EMAIL: admin@example.local
-      ADMIN_PASSWORD: admin123
+      ADMIN_PASSWORD: admin12345678
     ports:
       - '8080:8080'
 

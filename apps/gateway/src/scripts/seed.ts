@@ -1,4 +1,7 @@
+import { loadEnvFile } from '../env.js';
 import bcrypt from 'bcryptjs';
+
+loadEnvFile();
 import { closePool, getPool, withTransaction } from '../db.js';
 import { getCurrentVersion } from '../db/config-versions.js';
 import { createUser } from '../db/users.js';

@@ -25,6 +25,27 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...baseEnv, PORT: '99999' })).toThrow(/Invalid configuration/);
   });
 
+  it('parses boolean env vars correctly ("false" is false, not truthy)', () => {
+    const c = loadConfig({
+      ...baseEnv,
+      TLS_ENABLED: 'false',
+      HTTPS_REDIRECT: '0',
+      LOG_PRETTY: 'no',
+    });
+    expect(c.tlsEnabled).toBe(false);
+    expect(c.httpsRedirect).toBe(false);
+    expect(c.logPretty).toBe(false);
+    const d = loadConfig({ ...baseEnv, TLS_ENABLED: 'true', RATE_LIMIT_FAIL_OPEN: '1' });
+    expect(d.tlsEnabled).toBe(true);
+    expect(d.rateLimitFailOpen).toBe(true);
+    const e = loadConfig({ ...baseEnv, RATE_LIMIT_FAIL_OPEN: 'false' });
+    expect(e.rateLimitFailOpen).toBe(false);
+  });
+
+  it('rejects unrecognized boolean values', () => {
+    expect(() => loadConfig({ ...baseEnv, TLS_ENABLED: 'maybe' })).toThrow(/Invalid configuration/);
+  });
+
   it('rejects missing required values', () => {
     expect(() => loadConfig({ REDIS_URL: 'redis://localhost:6379' })).toThrow(
       /Invalid configuration/,

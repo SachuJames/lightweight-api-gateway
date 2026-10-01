@@ -1,4 +1,7 @@
+import { loadEnvFile } from './env.js';
 import { z } from 'zod';
+
+loadEnvFile();
 
 const DEV_JWT_SECRET = 'dev-only-change-me-in-any-shared-environment';
 
@@ -10,14 +13,35 @@ function csv(value: string | undefined): string[] {
     .filter((s) => s.length > 0);
 }
 
+/**
+ * Parse a boolean env var. `z.coerce.boolean()` is wrong here: it turns the
+ * string "false" into `true` because any non-empty string is truthy.
+ */
+function bool(defaultValue: boolean) {
+  return z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined) return defaultValue;
+      const normalized = value.trim().toLowerCase();
+      if (['true', '1', 'yes'].includes(normalized)) return true;
+      if (['false', '0', 'no', ''].includes(normalized)) return false;
+      ctx.addIssue({
+        code: 'custom',
+        message: `Expected a boolean (true/false), got "${value}"`,
+      });
+      return z.NEVER;
+    });
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   HTTPS_PORT: z.coerce.number().int().min(1).max(65535).default(8443),
-  TLS_ENABLED: z.coerce.boolean().default(false),
+  TLS_ENABLED: bool(false),
   TLS_CERT_PATH: z.string().default('.local/certs/server.crt'),
   TLS_KEY_PATH: z.string().default('.local/certs/server.key'),
-  HTTPS_REDIRECT: z.coerce.boolean().default(false),
+  HTTPS_REDIRECT: bool(false),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16),
@@ -25,7 +49,7 @@ const envSchema = z.object({
   ADMIN_EMAIL: z.email().default('admin@example.local'),
   ADMIN_PASSWORD: z.string().min(8).default('admin123'),
   TRUSTED_PROXIES: z.string().default(''),
-  RATE_LIMIT_FAIL_OPEN: z.coerce.boolean().default(true),
+  RATE_LIMIT_FAIL_OPEN: bool(true),
   ADMIN_LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),
   ADMIN_LOGIN_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   SSRF_DEV_ALLOWLIST: z.string().default(''),
@@ -34,7 +58,7 @@ const envSchema = z.object({
   MAX_BODY_BYTES: z.coerce.number().int().positive().default(1_048_576),
   MAX_HEADER_BYTES: z.coerce.number().int().positive().default(8_192),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  LOG_PRETTY: z.coerce.boolean().default(false),
+  LOG_PRETTY: bool(false),
   METRICS_PATH: z.string().startsWith('/').default('/internal/metrics'),
   CORS_ALLOWED_ORIGINS: z.string().default(''),
 });

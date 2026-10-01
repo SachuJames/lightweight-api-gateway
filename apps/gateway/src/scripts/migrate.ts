@@ -1,7 +1,10 @@
+import { loadEnvFile } from '../env.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runner } from 'node-pg-migrate';
 import { Pool } from 'pg';
+
+loadEnvFile();
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(here, '../../migrations');
