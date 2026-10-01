@@ -1,7 +1,7 @@
 ---
 name: Feature request
 about: Suggest an idea for the gateway
-title: ""
+title: ''
 labels: enhancement
 ---
 
