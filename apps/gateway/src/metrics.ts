@@ -108,11 +108,11 @@ export class MetricsRegistry {
 
 // Well-known series names used by the request pipeline.
 export const MetricNames = {
-  requestsTotal: 'gateway_requests_total',
-  requestDurationMs: 'gateway_request_duration_ms',
-  upstreamDurationMs: 'gateway_upstream_duration_ms',
-  rateLimitedTotal: 'gateway_rate_limited_total',
-  circuitOpenTotal: 'gateway_circuit_open_total',
-  authFailuresTotal: 'gateway_auth_failures_total',
-  configReloadsTotal: 'gateway_config_reloads_total',
+  requests: 'gateway.requests',
+  requestDuration: 'gateway.request.duration',
+  upstream: 'gateway.upstream',
+  rateLimited: 'gateway.rate_limited',
+  circuitRejected: 'gateway.circuit_rejected',
+  authFailures: 'gateway.auth_failures',
+  configReloads: 'gateway.config_reloads',
 } as const;

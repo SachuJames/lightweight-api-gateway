@@ -228,3 +228,43 @@ Nothing here is aspirational: every claim below was observed.
 - `pnpm lint` (eslint .) and `tsc` typecheck are clean; `prettier --check`
   clean for all source/test files (12 pre-existing config files like
   package.json use single-line JSON style and remain as-is).
+
+## Phase 16 — React admin UI
+
+- Full SPA in `apps/admin/src`: typed API client (`api/client.ts`), session
+  auth context (JWT in `Authorization` header, token in tab-scoped
+  sessionStorage), fetch-streaming SSE hook, pure analytics aggregation lib,
+  layout + pages: login, dashboard, routes, route detail, route create/edit
+  form, rate-limit/circuit-breaker policy management, circuit breaker states,
+  audit log (filters + pagination), system status (readiness, config version,
+  reload trigger), settings (session info, user management for admins).
+- Route create/update forms show "Configuration updated" with the new config
+  version returned by the API (backend: POST/PUT /api/routes now include
+  `version` in the response).
+- Backend fix found while building the UI: `MetricNames` listed series names
+  that the pipeline never recorded; aligned to the real names. Added the
+  missing `gateway.rate_limited`, `gateway.circuit_rejected`,
+  `gateway.auth_failures` counters (spec-required metrics that previously only
+  existed as status-labeled `gateway.requests`), and wired
+  `gateway.config_reloads{result}` through the reloader's onReload/onError
+  hooks in `index.ts`.
+- Tests: 7 new vitest tests for the analytics aggregation lib (all pass).
+  Totals: 96 gateway unit + 42 gateway integration + 7 admin unit = 145.
+- Verified: admin `tsc`, `vite build`, `vitest` clean; gateway `tsc`,
+  unit + integration suites clean; repo-wide `eslint` and `prettier --check`
+  clean (added `.prettierignore` for the lockfile; one-time normalization of
+  pre-existing unformatted JSON files).
+
+## Phase 17 — real-time analytics via SSE
+
+- Backend `/api/analytics/stream` (operator+) already existed from Phase 15;
+  the dashboard now consumes it live: stat cards (total requests, req/s from
+  snapshot deltas, error rate, avg/blended-p95 latency, rate-limited, circuit
+  rejections, auth failures, upstream errors), top-routes table, open-circuit
+  alerts. Circuit-breaker and system-status pages also stream live state.
+- Auth over fetch() streaming (not EventSource): EventSource cannot send an
+  Authorization header, and query-string tokens leak into logs/history, so the
+  hook uses fetch + ReadableStream with the JWT in the header and manual
+  exponential-backoff reconnect. Documented in `docs/security.md`.
+- Every number on the dashboard comes from the live metrics snapshot; empty
+  states say so explicitly instead of showing zeros as data.

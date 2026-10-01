@@ -159,7 +159,7 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     { preHandler: [requireRole('admin')] },
     async (req, reply: FastifyReply) => {
       const input = parse(routeInputSchema, req.body);
-      const { result } = await mutate(
+      const { result, version } = await mutate(
         req,
         AuditActions.routeCreate,
         'route',
@@ -170,7 +170,7 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
           return { result };
         },
       );
-      return reply.status(201).send({ route: result });
+      return reply.status(201).send({ route: result, version });
     },
   );
 
@@ -189,7 +189,7 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     { preHandler: [requireRole('admin')] },
     async (req, reply: FastifyReply) => {
       const patch = parse(routeInputSchema.partial(), req.body);
-      const { result } = await mutate(
+      const { result, version } = await mutate(
         req,
         AuditActions.routeUpdate,
         'route',
@@ -203,7 +203,7 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
           return { result: updated, before };
         },
       );
-      return reply.send({ route: result });
+      return reply.send({ route: result, version });
     },
   );
 

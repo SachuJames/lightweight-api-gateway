@@ -51,3 +51,70 @@ export interface ErrorBody {
     details?: unknown;
   };
 }
+
+// --- Admin API contract -------------------------------------------------------
+
+export type UserRole = 'admin' | 'operator' | 'viewer';
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  createdAt: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    role: string;
+  };
+}
+
+export interface AuditRecord {
+  id: string;
+  createdAt: string;
+  actor: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  before: unknown;
+  after: unknown;
+  requestId: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface LatencyStats {
+  count: number;
+  sum: number;
+  avg: number;
+  min: number;
+  max: number;
+  p50: number;
+  p95: number;
+  p99: number;
+}
+
+export interface MetricsSnapshot {
+  counters: Record<string, number>;
+  latencies: Record<string, LatencyStats>;
+  collectedAt: string;
+}
+
+export interface AnalyticsSnapshot {
+  timestamp: string;
+  configVersion: number;
+  metrics: MetricsSnapshot;
+  circuits: Record<string, CircuitState>;
+}
+
+export interface ConfigVersionInfo {
+  version: number;
+  dbVersion: number;
+}
+
+export interface RouteMutationResult {
+  route: Route;
+  version: number;
+}

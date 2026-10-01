@@ -44,9 +44,15 @@ async function main(): Promise<void> {
   const snapshot = await loadSnapshot(pool);
   const store = new ConfigStore(snapshot);
 
+  const metrics = new MetricsRegistry();
+
   const reloader = new ConfigReloader(store, pool, subscriber, {
     pollIntervalMs: 15_000,
+    onReload: () => {
+      metrics.inc('gateway.config_reloads', { result: 'ok' });
+    },
     onError: (err: unknown) => {
+      metrics.inc('gateway.config_reloads', { result: 'error' });
       console.error('Config reload error:', err);
     },
   });
@@ -71,7 +77,7 @@ async function main(): Promise<void> {
     publisher,
     store,
     plugins,
-    metrics: new MetricsRegistry(),
+    metrics,
     breakers: new CircuitBreakerRegistry(),
     auth: { jwtSecret: config.jwtSecret, tokenTtlSec: parseTtlSec(config.jwtExpiresIn) },
     audit: new AuditService(pool),

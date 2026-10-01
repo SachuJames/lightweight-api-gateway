@@ -144,6 +144,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
     if (route.authRequired && !req.authUser) {
       finish(401, labels);
+      deps.metrics.inc('gateway.auth_failures', labels);
       reply.status(401).header('x-request-id', requestId);
       return errorBody(
         ErrorCodes.AUTHENTICATION_ERROR,
@@ -196,6 +197,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
         if (!result.allowed) {
           reply.header('retry-after', Math.ceil(result.retryAfterMs / 1000));
           finish(429, labels);
+          deps.metrics.inc('gateway.rate_limited', labels);
           reply.status(429).header('x-request-id', requestId);
           return errorBody(
             ErrorCodes.RATE_LIMIT_EXCEEDED,
@@ -213,6 +215,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       const { allowed } = deps.breakers.canRequest(route.id, breakerPolicy);
       if (!allowed) {
         finish(503, labels);
+        deps.metrics.inc('gateway.circuit_rejected', labels);
         reply.status(503).header('x-request-id', requestId);
         return errorBody(
           ErrorCodes.CIRCUIT_OPEN,

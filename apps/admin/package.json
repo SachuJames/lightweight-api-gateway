@@ -1,1 +1,27 @@
-{"description":"React administration dashboard for the lightweight API gateway.","name":"admin-ui","private":true,"scripts":{"build":"tsc --noEmit && vite build","dev":"vite","preview":"vite preview --host 0.0.0.0 --port 5173","typecheck":"tsc --noEmit"},"type":"module","version":"0.1.0","dependencies":{"react":"^19.3.0","react-dom":"^19.3.0","react-router-dom":"^7.18.4"},"devDependencies":{"@types/react":"^19.3.0","@types/react-dom":"^19.3.0","@vitejs/plugin-react":"^6.1.1","vite":"^8.3.1"}}
+{
+  "description": "React administration dashboard for the lightweight API gateway.",
+  "name": "admin-ui",
+  "private": true,
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite",
+    "preview": "vite preview --host 0.0.0.0 --port 5173",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "type": "module",
+  "version": "0.1.0",
+  "dependencies": {
+    "@gateway/shared-types": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.3"
+  }
+}
