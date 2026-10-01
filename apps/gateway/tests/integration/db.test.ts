@@ -17,14 +17,20 @@ import {
 import { createUser, getUserByEmail } from '../../src/db/users.js';
 import { routeInputSchema } from '../../src/routing.js';
 
-const TEST_DB = process.env['TEST_DATABASE_URL'] ?? 'postgres://gateway:gateway@localhost:5432/gateway_test';
-const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../migrations');
+const TEST_DB =
+  process.env['TEST_DATABASE_URL'] ?? 'postgres://gateway:gateway@localhost:5432/gateway_test';
+const migrationsDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../migrations',
+);
 
 let pool: Pool;
 
 beforeAll(async () => {
   // Create the test database if it does not exist.
-  const admin = new Pool({ connectionString: 'postgres://gateway:gateway@localhost:5432/postgres' });
+  const admin = new Pool({
+    connectionString: 'postgres://gateway:gateway@localhost:5432/postgres',
+  });
   try {
     await admin.query('CREATE DATABASE gateway_test');
   } catch (err) {
@@ -40,7 +46,12 @@ beforeAll(async () => {
   } finally {
     await fresh.end();
   }
-  await runner({ databaseUrl: TEST_DB, dir: migrationsDir, direction: 'up', migrationsTable: 'pgmigrations' });
+  await runner({
+    databaseUrl: TEST_DB,
+    dir: migrationsDir,
+    direction: 'up',
+    migrationsTable: 'pgmigrations',
+  });
   pool = getPool({ databaseUrl: TEST_DB });
 }, 60_000);
 
@@ -81,15 +92,23 @@ describe('routes repository', () => {
   });
 
   it('lists routes ordered by priority then pattern', async () => {
-    await insertRoute(pool, routeInputSchema.parse({ ...validRoute, name: 'low', pathPattern: '/b/*', priority: 1 }));
-    await insertRoute(pool, routeInputSchema.parse({ ...validRoute, name: 'high', pathPattern: '/a/*', priority: 999 }));
+    await insertRoute(
+      pool,
+      routeInputSchema.parse({ ...validRoute, name: 'low', pathPattern: '/b/*', priority: 1 }),
+    );
+    await insertRoute(
+      pool,
+      routeInputSchema.parse({ ...validRoute, name: 'high', pathPattern: '/a/*', priority: 999 }),
+    );
     const routes = await listRoutes(pool);
     expect(routes.map((r) => r.name)).toEqual(['high', 'low']);
   });
 
   it('returns null for unknown ids', async () => {
     expect(await getRoute(pool, '00000000-0000-0000-0000-000000000099')).toBeNull();
-    expect(await updateRoute(pool, '00000000-0000-0000-0000-000000000099', { priority: 1 })).toBeNull();
+    expect(
+      await updateRoute(pool, '00000000-0000-0000-0000-000000000099', { priority: 1 }),
+    ).toBeNull();
   });
 });
 
@@ -118,8 +137,12 @@ describe('policies', () => {
       `INSERT INTO rate_limit_policies (id, name, capacity, refill_rate_per_sec, key_strategy)
        VALUES ('00000000-0000-0000-0000-0000000000a1', 'x', 10, 1, 'ip')`,
     );
-    expect(await policyExists(pool, 'rate_limit_policies', '00000000-0000-0000-0000-0000000000a1')).toBe(true);
-    expect(await policyExists(pool, 'rate_limit_policies', '00000000-0000-0000-0000-0000000000a2')).toBe(false);
+    expect(
+      await policyExists(pool, 'rate_limit_policies', '00000000-0000-0000-0000-0000000000a1'),
+    ).toBe(true);
+    expect(
+      await policyExists(pool, 'rate_limit_policies', '00000000-0000-0000-0000-0000000000a2'),
+    ).toBe(false);
   });
 });
 
@@ -134,8 +157,18 @@ describe('users', () => {
 
 describe('audit log', () => {
   it('appends and filters records; never updates', async () => {
-    await appendAudit(pool, { actor: 'admin@example.local', action: 'route.create', resourceType: 'route', resourceId: 'r1' });
-    await appendAudit(pool, { actor: 'admin@example.local', action: 'route.delete', resourceType: 'route', resourceId: 'r1' });
+    await appendAudit(pool, {
+      actor: 'admin@example.local',
+      action: 'route.create',
+      resourceType: 'route',
+      resourceId: 'r1',
+    });
+    await appendAudit(pool, {
+      actor: 'admin@example.local',
+      action: 'route.delete',
+      resourceType: 'route',
+      resourceId: 'r1',
+    });
     const { records, total } = await listAudit(pool, { resourceType: 'route', resourceId: 'r1' });
     expect(total).toBe(2);
     expect(records[0]?.action).toBe('route.delete'); // newest first

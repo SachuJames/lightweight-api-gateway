@@ -33,7 +33,7 @@ export function rowToRoute(row: RouteRow): Route {
     rateLimitPolicyId: row.rate_limit_policy_id,
     circuitBreakerPolicyId: row.circuit_breaker_policy_id,
     timeoutMs: row.timeout_ms,
-    pluginConfig: row.plugin_config ?? {},
+    pluginConfig: row.plugin_config,
     version: row.version,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -109,12 +109,16 @@ const PATCH_COLUMNS: Record<RoutePatchKey, string> = {
   pluginConfig: 'plugin_config',
 };
 
-export async function updateRoute(client: DbClient, id: string, patch: RoutePatch): Promise<Route | null> {
+export async function updateRoute(
+  client: DbClient,
+  id: string,
+  patch: RoutePatch,
+): Promise<Route | null> {
   const sets: string[] = [];
   const values: unknown[] = [];
   for (const [key, value] of Object.entries(patch)) {
     const column = PATCH_COLUMNS[key as RoutePatchKey];
-    if (value === undefined || column === undefined) continue;
+    if (value === undefined) continue;
     values.push(key === 'upstreamUrl' ? normalizeUpstreamUrl(value as string) : value);
     sets.push(`${column} = $${values.length}`);
   }
@@ -140,7 +144,11 @@ export interface PolicyRow {
   name: string;
 }
 
-export async function policyExists(client: DbClient, table: 'rate_limit_policies' | 'circuit_breaker_policies', id: string): Promise<boolean> {
+export async function policyExists(
+  client: DbClient,
+  table: 'rate_limit_policies' | 'circuit_breaker_policies',
+  id: string,
+): Promise<boolean> {
   const res = await client.query('SELECT 1 FROM ' + table + ' WHERE id = $1', [id]);
   return res.rowCount !== 0;
 }
@@ -149,26 +157,28 @@ export async function listRateLimitPolicies(client: DbClient): Promise<RateLimit
   const res = await client.query(
     'SELECT id, name, capacity, refill_rate_per_sec, key_strategy, fail_open FROM rate_limit_policies ORDER BY name ASC',
   );
-  return res.rows.map((r) => ({
-    id: r.id as string,
-    name: r.name as string,
-    capacity: r.capacity as number,
-    refillRatePerSec: Number(r.refill_rate_per_sec),
-    keyStrategy: r.key_strategy as RateLimitPolicy['keyStrategy'],
-    failOpen: r.fail_open as boolean,
+  return res.rows.map((r: Record<string, unknown>) => ({
+    id: r['id'] as string,
+    name: r['name'] as string,
+    capacity: r['capacity'] as number,
+    refillRatePerSec: Number(r['refill_rate_per_sec']),
+    keyStrategy: r['key_strategy'] as RateLimitPolicy['keyStrategy'],
+    failOpen: r['fail_open'] as boolean,
   }));
 }
 
-export async function listCircuitBreakerPolicies(client: DbClient): Promise<CircuitBreakerPolicy[]> {
+export async function listCircuitBreakerPolicies(
+  client: DbClient,
+): Promise<CircuitBreakerPolicy[]> {
   const res = await client.query('SELECT * FROM circuit_breaker_policies ORDER BY name ASC');
-  return res.rows.map((r) => ({
-    id: r.id as string,
-    name: r.name as string,
-    failureThreshold: r.failure_threshold as number,
-    rollingWindowMs: r.rolling_window_ms as number,
-    openDurationMs: r.open_duration_ms as number,
-    halfOpenMaxProbes: r.half_open_max_probes as number,
-    failureStatuses: r.failure_statuses as number[],
-    countTimeouts: r.count_timeouts as boolean,
+  return res.rows.map((r: Record<string, unknown>) => ({
+    id: r['id'] as string,
+    name: r['name'] as string,
+    failureThreshold: r['failure_threshold'] as number,
+    rollingWindowMs: r['rolling_window_ms'] as number,
+    openDurationMs: r['open_duration_ms'] as number,
+    halfOpenMaxProbes: r['half_open_max_probes'] as number,
+    failureStatuses: r['failure_statuses'] as number[],
+    countTimeouts: r['count_timeouts'] as boolean,
   }));
 }

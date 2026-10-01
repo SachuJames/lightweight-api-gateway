@@ -26,7 +26,8 @@ export async function getUserByEmail(client: DbClient, email: string): Promise<U
   };
 }
 
-export async function createUser(  client: DbClient,
+export async function createUser(
+  client: DbClient,
   input: { email: string; passwordHash: string; role: string },
 ): Promise<UserRecord> {
   const res = await client.query(
@@ -55,12 +56,14 @@ export async function listUsers(client: DbClient): Promise<Omit<UserRecord, 'pas
   const res = await client.query(
     'SELECT id, email, role, created_at FROM users ORDER BY email ASC',
   );
-  return (res.rows as { id: string; email: string; role: string; created_at: Date }[]).map((row) => ({
-    id: row.id,
-    email: row.email,
-    role: row.role,
-    createdAt: row.created_at.toISOString(),
-  }));
+  return (res.rows as { id: string; email: string; role: string; created_at: Date }[]).map(
+    (row) => ({
+      id: row.id,
+      email: row.email,
+      role: row.role,
+      createdAt: row.created_at.toISOString(),
+    }),
+  );
 }
 
 export async function deleteUser(client: DbClient, id: string): Promise<boolean> {

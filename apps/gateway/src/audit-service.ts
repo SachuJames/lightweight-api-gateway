@@ -40,7 +40,7 @@ export class AuditService {
 
   async record(
     ctx: AuditContext,
-    action: AuditAction | string,
+    action: AuditAction,
     resourceType: string,
     details: {
       resourceId?: string | null | undefined;

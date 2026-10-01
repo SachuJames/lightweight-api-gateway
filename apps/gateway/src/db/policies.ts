@@ -51,7 +51,10 @@ const RL_COLS = 'id, name, capacity, refill_rate_per_sec, key_strategy, fail_ope
 const CB_COLS =
   'id, name, failure_threshold, rolling_window_ms, open_duration_ms, half_open_max_probes, failure_statuses, count_timeouts';
 
-export async function insertRateLimitPolicy(client: DbClient, input: RateLimitPolicyInput): Promise<RateLimitPolicy> {
+export async function insertRateLimitPolicy(
+  client: DbClient,
+  input: RateLimitPolicyInput,
+): Promise<RateLimitPolicy> {
   const res = await client.query(
     `INSERT INTO rate_limit_policies (name, capacity, refill_rate_per_sec, key_strategy, fail_open)
      VALUES ($1,$2,$3,$4,$5) RETURNING ${RL_COLS}`,
@@ -80,7 +83,9 @@ export async function updateRateLimitPolicy(
     sets.push(`${map[k]} = $${values.length}`);
   }
   if (sets.length === 0) {
-    const res = await client.query(`SELECT ${RL_COLS} FROM rate_limit_policies WHERE id = $1`, [id]);
+    const res = await client.query(`SELECT ${RL_COLS} FROM rate_limit_policies WHERE id = $1`, [
+      id,
+    ]);
     const row = res.rows[0] as Record<string, unknown> | undefined;
     return row ? rowToRateLimit(row) : null;
   }
@@ -94,8 +99,14 @@ export async function updateRateLimitPolicy(
   return row ? rowToRateLimit(row) : null;
 }
 
-export async function deleteRateLimitPolicy(client: DbClient, id: string): Promise<RateLimitPolicy | null> {
-  const res = await client.query(`DELETE FROM rate_limit_policies WHERE id = $1 RETURNING ${RL_COLS}`, [id]);
+export async function deleteRateLimitPolicy(
+  client: DbClient,
+  id: string,
+): Promise<RateLimitPolicy | null> {
+  const res = await client.query(
+    `DELETE FROM rate_limit_policies WHERE id = $1 RETURNING ${RL_COLS}`,
+    [id],
+  );
   const row = res.rows[0] as Record<string, unknown> | undefined;
   return row ? rowToRateLimit(row) : null;
 }
@@ -143,7 +154,10 @@ export async function updateCircuitBreakerPolicy(
     sets.push(`${map[k]} = $${values.length}`);
   }
   if (sets.length === 0) {
-    const res = await client.query(`SELECT ${CB_COLS} FROM circuit_breaker_policies WHERE id = $1`, [id]);
+    const res = await client.query(
+      `SELECT ${CB_COLS} FROM circuit_breaker_policies WHERE id = $1`,
+      [id],
+    );
     const row = res.rows[0] as Record<string, unknown> | undefined;
     return row ? rowToCircuit(row) : null;
   }
@@ -161,7 +175,10 @@ export async function deleteCircuitBreakerPolicy(
   client: DbClient,
   id: string,
 ): Promise<CircuitBreakerPolicy | null> {
-  const res = await client.query(`DELETE FROM circuit_breaker_policies WHERE id = $1 RETURNING ${CB_COLS}`, [id]);
+  const res = await client.query(
+    `DELETE FROM circuit_breaker_policies WHERE id = $1 RETURNING ${CB_COLS}`,
+    [id],
+  );
   const row = res.rows[0] as Record<string, unknown> | undefined;
   return row ? rowToCircuit(row) : null;
 }
@@ -172,6 +189,8 @@ export async function countRoutesUsingPolicy(
   column: 'rate_limit_policy_id' | 'circuit_breaker_policy_id',
   id: string,
 ): Promise<number> {
-  const res = await client.query(`SELECT COUNT(*)::int AS n FROM routes WHERE ${column} = $1`, [id]);
+  const res = await client.query(`SELECT COUNT(*)::int AS n FROM routes WHERE ${column} = $1`, [
+    id,
+  ]);
   return (res.rows[0] as { n: number }).n;
 }

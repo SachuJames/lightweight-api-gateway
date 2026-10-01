@@ -30,16 +30,22 @@ describe('tokens', () => {
 
   it('rejects a token signed with another secret', async () => {
     const token = await signToken(user, AUTH);
-    await expect(verifyToken(token, 'different-secret-that-is-long-enough!')).rejects.toThrow(GatewayError);
+    await expect(verifyToken(token, 'different-secret-that-is-long-enough!')).rejects.toThrow(
+      GatewayError,
+    );
   });
 
   it('rejects expired tokens', async () => {
     const token = await signToken(user, { ...AUTH, tokenTtlSec: -10 });
-    await expect(verifyToken(token, AUTH.jwtSecret)).rejects.toMatchObject({ code: 'AUTHENTICATION_ERROR' });
+    await expect(verifyToken(token, AUTH.jwtSecret)).rejects.toMatchObject({
+      code: 'AUTHENTICATION_ERROR',
+    });
   });
 
   it('rejects garbage', async () => {
-    await expect(verifyToken('not.a.token', AUTH.jwtSecret)).rejects.toMatchObject({ statusCode: 401 });
+    await expect(verifyToken('not.a.token', AUTH.jwtSecret)).rejects.toMatchObject({
+      statusCode: 401,
+    });
   });
 });
 
@@ -63,7 +69,13 @@ describe('authenticateUser', () => {
           const hash = await hashPassword('s3cret-password');
           return {
             rows: [
-              { id: 'u1', email: 'a@b.c', password_hash: hash, role: 'operator', created_at: new Date() },
+              {
+                id: 'u1',
+                email: 'a@b.c',
+                password_hash: hash,
+                role: 'operator',
+                created_at: new Date(),
+              },
             ],
           };
         }
@@ -79,10 +91,14 @@ describe('authenticateUser', () => {
   });
 
   it('throws 401 for unknown email or wrong password', async () => {
-    await expect(authenticateUser(stubClient, 'nobody@x.y', 's3cret-password')).rejects.toMatchObject({
+    await expect(
+      authenticateUser(stubClient, 'nobody@x.y', 's3cret-password'),
+    ).rejects.toMatchObject({
       statusCode: 401,
       code: 'AUTHENTICATION_ERROR',
     });
-    await expect(authenticateUser(stubClient, 'a@b.c', 'wrong')).rejects.toMatchObject({ statusCode: 401 });
+    await expect(authenticateUser(stubClient, 'a@b.c', 'wrong')).rejects.toMatchObject({
+      statusCode: 401,
+    });
   });
 });

@@ -3,7 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { runner } from 'node-pg-migrate';
 import { Pool } from 'pg';
 
-const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../migrations');
+const migrationsDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../migrations',
+);
 const ADMIN_URL = 'postgres://gateway:gateway@localhost:5432/postgres';
 
 /**
@@ -27,6 +30,11 @@ export async function setupTestDb(name: string): Promise<Pool> {
   } finally {
     await fresh.end();
   }
-  await runner({ databaseUrl: url, dir: migrationsDir, direction: 'up', migrationsTable: 'pgmigrations' });
+  await runner({
+    databaseUrl: url,
+    dir: migrationsDir,
+    direction: 'up',
+    migrationsTable: 'pgmigrations',
+  });
   return new Pool({ connectionString: url });
 }

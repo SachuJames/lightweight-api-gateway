@@ -17,9 +17,7 @@ import type { CircuitBreakerPolicy } from '@gateway/shared-types';
 export type CircuitState = 'closed' | 'open' | 'half-open';
 
 export type UpstreamOutcome =
-  | { kind: 'success' }
-  | { kind: 'status'; status: number }
-  | { kind: 'timeout' };
+  { kind: 'success' } | { kind: 'status'; status: number } | { kind: 'timeout' };
 
 interface Breaker {
   policy: CircuitBreakerPolicy;
@@ -47,7 +45,10 @@ export class CircuitBreakerRegistry {
   }
 
   /** Whether a request may proceed; performs time-based state transitions. */
-  canRequest(routeId: string, policy: CircuitBreakerPolicy): { allowed: boolean; state: CircuitState } {
+  canRequest(
+    routeId: string,
+    policy: CircuitBreakerPolicy,
+  ): { allowed: boolean; state: CircuitState } {
     const breaker = this.getOrCreate(routeId, policy);
     const now = this.now();
 
@@ -98,6 +99,15 @@ export class CircuitBreakerRegistry {
 
   stateOf(routeId: string): CircuitState | null {
     return this.breakers.get(routeId)?.state ?? null;
+  }
+
+  /** Current state of every known route breaker (observability). */
+  states(): Record<string, CircuitState> {
+    const out: Record<string, CircuitState> = {};
+    for (const [routeId, breaker] of this.breakers) {
+      out[routeId] = breaker.state;
+    }
+    return out;
   }
 
   /** Forget a route's breaker (route deleted or policy unassigned). */

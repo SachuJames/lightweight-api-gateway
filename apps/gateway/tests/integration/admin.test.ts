@@ -22,7 +22,11 @@ let app: ReturnType<typeof Fastify>;
 const tokens: Record<string, string> = {};
 
 async function loginAs(email: string, password: string): Promise<string> {
-  const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email, password } });
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { email, password },
+  });
   expect(res.statusCode).toBe(200);
   return (res.json() as { token: string }).token;
 }
@@ -91,7 +95,10 @@ describe('auth', () => {
 
 describe('RBAC', () => {
   it('viewer can read but not write', async () => {
-    expect((await app.inject({ method: 'GET', url: '/api/routes', ...auth('viewer@example.local') })).statusCode).toBe(200);
+    expect(
+      (await app.inject({ method: 'GET', url: '/api/routes', ...auth('viewer@example.local') }))
+        .statusCode,
+    ).toBe(200);
     const res = await app.inject({
       method: 'POST',
       url: '/api/routes',
@@ -103,7 +110,11 @@ describe('RBAC', () => {
   });
 
   it('operator cannot manage routes or users', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/users', ...auth('operator@example.local') });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/users',
+      ...auth('operator@example.local'),
+    });
     expect(res.statusCode).toBe(403);
   });
 });
@@ -114,7 +125,12 @@ describe('routes', () => {
       method: 'POST',
       url: '/api/routes',
       ...auth('admin@example.local'),
-      payload: { name: 'users', pathPattern: '/api/users/*', methods: ['GET'], upstreamUrl: 'http://users:3001' },
+      payload: {
+        name: 'users',
+        pathPattern: '/api/users/*',
+        methods: ['GET'],
+        upstreamUrl: 'http://users:3001',
+      },
     });
     expect(created.statusCode).toBe(201);
     const route = (created.json() as { route: { id: string; version: number } }).route;
@@ -177,7 +193,12 @@ describe('routes', () => {
         method: 'POST',
         url: '/api/routes',
         ...auth('admin@example.local'),
-        payload: { name: 'tmp', pathPattern: '/tmp/*', methods: ['GET'], upstreamUrl: 'http://x:1' },
+        payload: {
+          name: 'tmp',
+          pathPattern: '/tmp/*',
+          methods: ['GET'],
+          upstreamUrl: 'http://x:1',
+        },
       });
       const start = Date.now();
       while (received.length === 0 && Date.now() - start < 5000) {
@@ -199,7 +220,13 @@ describe('policies', () => {
       method: 'POST',
       url: '/api/rate-limit-policies',
       ...auth('admin@example.local'),
-      payload: { name: 'strict', capacity: 10, refillRatePerSec: 1, keyStrategy: 'ip', failOpen: false },
+      payload: {
+        name: 'strict',
+        capacity: 10,
+        refillRatePerSec: 1,
+        keyStrategy: 'ip',
+        failOpen: false,
+      },
     });
     expect(created.statusCode).toBe(201);
     const policy = (created.json() as { policy: { id: string } }).policy;
@@ -226,7 +253,11 @@ describe('policies', () => {
     expect(blocked.statusCode).toBe(409);
     expect(blocked.json().error.code).toBe('CONFLICT');
 
-    await app.inject({ method: 'DELETE', url: `/api/routes/${routeId}`, ...auth('admin@example.local') });
+    await app.inject({
+      method: 'DELETE',
+      url: `/api/routes/${routeId}`,
+      ...auth('admin@example.local'),
+    });
     const deleted = await app.inject({
       method: 'DELETE',
       url: `/api/rate-limit-policies/${policy.id}`,
@@ -263,11 +294,19 @@ describe('audit', () => {
 
 describe('config and metrics', () => {
   it('reports versions and serves metrics', async () => {
-    const version = await app.inject({ method: 'GET', url: '/api/config/version', ...auth('viewer@example.local') });
+    const version = await app.inject({
+      method: 'GET',
+      url: '/api/config/version',
+      ...auth('viewer@example.local'),
+    });
     expect(version.statusCode).toBe(200);
     expect((version.json() as { dbVersion: number }).dbVersion).toBeGreaterThan(0);
 
-    const reload = await app.inject({ method: 'POST', url: '/api/config/reload', ...auth('operator@example.local') });
+    const reload = await app.inject({
+      method: 'POST',
+      url: '/api/config/reload',
+      ...auth('operator@example.local'),
+    });
     expect(reload.statusCode).toBe(200);
 
     const viewerReloadDenied = await app.inject({
@@ -277,7 +316,11 @@ describe('config and metrics', () => {
     });
     expect(viewerReloadDenied.statusCode).toBe(403);
 
-    const metrics = await app.inject({ method: 'GET', url: '/api/metrics', ...auth('viewer@example.local') });
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/api/metrics',
+      ...auth('viewer@example.local'),
+    });
     expect(metrics.statusCode).toBe(200);
     expect(metrics.json()).toHaveProperty('counters');
   });
@@ -294,7 +337,11 @@ describe('users', () => {
     expect(created.statusCode).toBe(201);
     const userId = (created.json() as { user: { id: string } }).user.id;
 
-    const me = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'admin@example.local', password: 'password-123456' } });
+    const me = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: 'admin@example.local', password: 'password-123456' },
+    });
     const myId = (me.json() as { user: { id: string } }).user.id;
     const selfDelete = await app.inject({
       method: 'DELETE',

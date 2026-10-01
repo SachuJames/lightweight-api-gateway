@@ -109,7 +109,11 @@ export function limitStreamBytes(source: Readable, maxBytes: number): Readable {
       seen += chunk.length;
       if (seen > maxBytes) {
         callback(
-          new GatewayError(ErrorCodes.PAYLOAD_TOO_LARGE, 413, `Request body exceeds ${maxBytes} bytes`),
+          new GatewayError(
+            ErrorCodes.PAYLOAD_TOO_LARGE,
+            413,
+            `Request body exceeds ${maxBytes} bytes`,
+          ),
         );
       } else {
         callback(null, chunk);
@@ -121,23 +125,54 @@ export function limitStreamBytes(source: Readable, maxBytes: number): Readable {
 }
 
 function hasRequestBody(req: FastifyRequest): boolean {
-  return req.headers['content-length'] !== undefined || req.headers['transfer-encoding'] !== undefined;
+  return (
+    req.headers['content-length'] !== undefined || req.headers['transfer-encoding'] !== undefined
+  );
 }
 
 export function mapUpstreamError(err: unknown): GatewayError {
   if (err instanceof GatewayError) return err;
-  const code = (err as { code?: string })?.code ?? '';
-  const name = (err as { name?: string })?.name ?? '';
-  if (name === 'TimeoutError' || code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'UND_ERR_HEADERS_TIMEOUT') {
-    return new GatewayError(ErrorCodes.UPSTREAM_TIMEOUT, 504, 'Upstream did not respond in time', 'timeout');
+  const code = (err as { code?: string } | undefined)?.code ?? '';
+  const name = (err as { name?: string } | undefined)?.name ?? '';
+  if (
+    name === 'TimeoutError' ||
+    code === 'UND_ERR_CONNECT_TIMEOUT' ||
+    code === 'UND_ERR_HEADERS_TIMEOUT'
+  ) {
+    return new GatewayError(
+      ErrorCodes.UPSTREAM_TIMEOUT,
+      504,
+      'Upstream did not respond in time',
+      'timeout',
+    );
   }
-  if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'EHOSTUNREACH' || code === 'EAI_AGAIN') {
-    return new GatewayError(ErrorCodes.UPSTREAM_UNAVAILABLE, 503, 'Upstream is unreachable', 'connection');
+  if (
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    code === 'EHOSTUNREACH' ||
+    code === 'EAI_AGAIN'
+  ) {
+    return new GatewayError(
+      ErrorCodes.UPSTREAM_UNAVAILABLE,
+      503,
+      'Upstream is unreachable',
+      'connection',
+    );
   }
   if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'UND_ERR_SOCKET') {
-    return new GatewayError(ErrorCodes.UPSTREAM_ERROR, 502, 'Upstream connection failed', 'connection');
+    return new GatewayError(
+      ErrorCodes.UPSTREAM_ERROR,
+      502,
+      'Upstream connection failed',
+      'connection',
+    );
   }
-  return new GatewayError(ErrorCodes.UPSTREAM_ERROR, 502, 'Bad response from upstream', 'bad_response');
+  return new GatewayError(
+    ErrorCodes.UPSTREAM_ERROR,
+    502,
+    'Bad response from upstream',
+    'bad_response',
+  );
 }
 
 export interface ProxyOutcome {
@@ -150,13 +185,13 @@ export interface ProxyOutcome {
 function streamToReply(reply: FastifyReply, body: Readable): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false;
-    const done = (err?: unknown) => {
+    const done = (err?: Error) => {
       if (settled) return;
       settled = true;
       if (err) reject(err);
       else resolve();
     };
-    body.once('error', (streamErr: unknown) => {
+    body.once('error', (streamErr: Error) => {
       if (!reply.raw.headersSent) {
         done(streamErr);
       } else {
@@ -164,8 +199,12 @@ function streamToReply(reply: FastifyReply, body: Readable): Promise<void> {
         done();
       }
     });
-    body.once('end', () => done());
-    body.once('close', () => done());
+    body.once('end', () => {
+      done();
+    });
+    body.once('close', () => {
+      done();
+    });
     reply.raw.once('close', () => {
       body.destroy();
     });
@@ -177,7 +216,7 @@ async function proxyOnce(
   req: FastifyRequest,
   reply: FastifyReply,
   target: ProxyTarget,
-  opts: ProxyPluginOptions,
+  opts: ProxyRequestOptions,
 ): Promise<ProxyOutcome> {
   const requestId = resolveRequestId(req.headers['x-request-id']);
   const started = Date.now();
@@ -185,10 +224,11 @@ async function proxyOnce(
   const dispatcher = new Agent({ connect: { timeout: opts.config.upstreamConnectTimeoutMs } });
 
   try {
-    const outbound = filterOutboundHeaders(req.headers as Record<string, string | string[] | undefined>);
+    const outbound = filterOutboundHeaders(req.headers);
     outbound['x-request-id'] = requestId;
     const clientIp = opts.getClientIp(req);
-    const prior = req.headers['x-forwarded-for'];
+    const priorHeader = req.headers['x-forwarded-for'];
+    const prior = Array.isArray(priorHeader) ? priorHeader.join(', ') : priorHeader;
     outbound['x-forwarded-for'] = prior ? `${prior}, ${clientIp}` : clientIp;
 
     let body: Readable | undefined;
@@ -218,7 +258,7 @@ async function proxyOnce(
       throw mapUpstreamError(err);
     }
 
-    const inbound = filterInboundHeaders(upstream.headers as Record<string, string | string[] | undefined>);
+    const inbound = filterInboundHeaders(upstream.headers);
     reply.status(upstream.statusCode);
     for (const [name, value] of Object.entries(inbound)) {
       reply.header(name, value);
@@ -246,7 +286,9 @@ async function proxyOnce(
     outcome = { requestId, statusCode: mapped.statusCode, failureKind: mapped.failureKind };
     return outcome;
   } finally {
-    await dispatcher.close().catch(() => undefined);
+    // Report the settled outcome before tearing down the dispatcher: close()
+    // can wait on connection teardown, and outcome bookkeeping (circuit
+    // breaker, metrics) must be visible before the next request is admitted.
     opts.onSettled?.({
       requestId,
       target,
@@ -254,15 +296,48 @@ async function proxyOnce(
       failureKind: outcome?.failureKind ?? 'none',
       durationMs: Date.now() - started,
     });
+    await dispatcher.close().catch(() => undefined);
   }
 }
 
-export async function proxyPlugin(app: FastifyInstance, opts: ProxyPluginOptions): Promise<void> {
+export interface ProxyRequestOptions {
+  config: GatewayConfig;
+  /** Client IP for X-Forwarded-For (already trust-filtered by the caller). */
+  getClientIp: (req: FastifyRequest) => string;
+  /** Optional hook for metrics/observability (called after proxying settles). */
+  onSettled?: (info: {
+    requestId: string;
+    target: ProxyTarget;
+    statusCode: number | null;
+    failureKind: UpstreamFailureKind;
+    durationMs: number;
+  }) => void;
+}
+
+/**
+ * Proxy a single request to the target and stream the response back.
+ * Never throws: upstream failures are mapped to error responses.
+ */
+export async function proxyRequest(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  target: ProxyTarget,
+  opts: ProxyRequestOptions,
+): Promise<ProxyOutcome> {
+  return proxyOnce(req, reply, target, opts);
+}
+
+export function proxyPlugin(app: FastifyInstance, opts: ProxyPluginOptions): void {
   // Pass request bodies through untouched so the proxy can stream them.
   // Note: the '*' wildcard does not override Fastify's built-in JSON/text
   // parsers, so those are replaced explicitly within this encapsulated context.
-  const passthrough = (_request: FastifyRequest, payload: Readable, done: (err: Error | null, body?: unknown) => void) =>
+  const passthrough = (
+    _request: FastifyRequest,
+    payload: Readable,
+    done: (err: Error | null, body?: unknown) => void,
+  ) => {
     done(null, payload);
+  };
   app.removeContentTypeParser('application/json');
   app.removeContentTypeParser('text/plain');
   app.addContentTypeParser('application/json', passthrough);
@@ -274,8 +349,18 @@ export async function proxyPlugin(app: FastifyInstance, opts: ProxyPluginOptions
     if (!target) {
       const requestId = resolveRequestId(req.headers['x-request-id']);
       reply.status(404).header('x-request-id', requestId);
-      return { error: { code: ErrorCodes.ROUTE_NOT_FOUND, message: 'No route matches this request', requestId } };
+      return {
+        error: {
+          code: ErrorCodes.ROUTE_NOT_FOUND,
+          message: 'No route matches this request',
+          requestId,
+        },
+      };
     }
-    return proxyOnce(req, reply, target, opts);
+    return proxyOnce(req, reply, target, {
+      config: opts.config,
+      getClientIp: opts.getClientIp,
+      ...(opts.onSettled ? { onSettled: opts.onSettled } : {}),
+    });
   });
 }

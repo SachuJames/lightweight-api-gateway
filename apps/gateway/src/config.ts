@@ -22,7 +22,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default('15m'),
-  ADMIN_EMAIL: z.string().email().default('admin@example.local'),
+  ADMIN_EMAIL: z.email().default('admin@example.local'),
   ADMIN_PASSWORD: z.string().min(8).default('admin123'),
   TRUSTED_PROXIES: z.string().default(''),
   RATE_LIMIT_FAIL_OPEN: z.coerce.boolean().default(true),
@@ -83,7 +83,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
       throw new Error('Refusing to start: JWT_SECRET is the development default.');
     }
     if (e.JWT_SECRET.length < 32) {
-      throw new Error('Refusing to start: JWT_SECRET must be at least 32 characters in production.');
+      throw new Error(
+        'Refusing to start: JWT_SECRET must be at least 32 characters in production.',
+      );
     }
     if (e.ADMIN_PASSWORD === 'admin123') {
       throw new Error('Refusing to start: ADMIN_PASSWORD is the development default.');

@@ -26,7 +26,9 @@ describe('loadConfig', () => {
   });
 
   it('rejects missing required values', () => {
-    expect(() => loadConfig({ REDIS_URL: 'redis://localhost:6379' })).toThrow(/Invalid configuration/);
+    expect(() => loadConfig({ REDIS_URL: 'redis://localhost:6379' })).toThrow(
+      /Invalid configuration/,
+    );
   });
 
   it('refuses production with the development JWT secret', () => {

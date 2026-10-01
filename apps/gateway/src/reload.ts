@@ -59,14 +59,18 @@ export class ConfigReloader {
     this.started = true;
     this.subscriber.on('message', (channel, raw) => {
       if (channel !== this.channel) return;
-      this.handleMessage(raw).catch((err) => this.onError?.(err as Error));
+      this.handleMessage(raw).catch((err: unknown) => {
+        this.onError?.(err as Error);
+      });
     });
     await this.subscriber.subscribe(this.channel);
     if (this.pollIntervalMs > 0) {
       this.timer = setInterval(() => {
-        this.checkForUpdates().catch((err) => this.onError?.(err as Error));
+        this.checkForUpdates().catch((err: unknown) => {
+          this.onError?.(err as Error);
+        });
       }, this.pollIntervalMs);
-      this.timer.unref?.();
+      this.timer.unref();
     }
   }
 

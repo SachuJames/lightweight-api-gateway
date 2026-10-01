@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   console.log(`migrations ${command} complete`);
 }
 
-main().catch((err) => {
+main().catch((err: unknown) => {
   // eslint-disable-next-line no-console
   console.error(err);
   process.exit(1);

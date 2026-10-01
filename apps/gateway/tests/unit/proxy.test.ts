@@ -3,7 +3,12 @@ import { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 import { loadConfig } from '../../src/config.js';
-import { filterInboundHeaders, filterOutboundHeaders, proxyPlugin, resolveRequestId } from '../../src/proxy.js';
+import {
+  filterInboundHeaders,
+  filterOutboundHeaders,
+  proxyPlugin,
+  resolveRequestId,
+} from '../../src/proxy.js';
 
 const testEnv = {
   DATABASE_URL: 'postgres://gateway:gateway@localhost:5432/gateway_dev',
@@ -16,8 +21,12 @@ const config = loadConfig(testEnv);
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (c) => chunks.push(c));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('data', (c) => {
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      resolve(Buffer.concat(chunks));
+    });
     req.on('error', reject);
   });
 }
@@ -25,59 +34,72 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
 let upstream: Server;
 let upstreamBase = '';
 
+async function serveUpstream(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://x');
+  if (url.pathname === '/slow') {
+    const ms = Number(url.searchParams.get('ms') ?? '1500');
+    await new Promise((r) => setTimeout(r, ms));
+  }
+  if (url.pathname === '/fail') {
+    res.statusCode = 500;
+    res.end('boom');
+    return;
+  }
+  if (url.pathname === '/teapot') {
+    res.statusCode = 418;
+    res.end('teapot');
+    return;
+  }
+  const body = await readBody(req);
+  res.setHeader('content-type', 'application/json');
+  res.setHeader('x-upstream', 'yes');
+  res.setHeader('connection', 'x-hop-test'); // connection-token: must not reach client
+  res.setHeader('x-hop-test', 'leaked');
+  res.end(
+    JSON.stringify({
+      method: req.method,
+      path: url.pathname,
+      query: url.search,
+      headers: {
+        'x-request-id': req.headers['x-request-id'],
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+        'x-custom': req.headers['x-custom'],
+        'transfer-encoding': req.headers['transfer-encoding'],
+      },
+      body: body.toString('utf8'),
+    }),
+  );
+}
+
 beforeAll(async () => {
-  upstream = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const url = new URL(req.url ?? '/', 'http://x');
-    if (url.pathname === '/slow') {
-      const ms = Number(url.searchParams.get('ms') ?? '1500');
-      await new Promise((r) => setTimeout(r, ms));
-    }
-    if (url.pathname === '/fail') {
-      res.statusCode = 500;
-      res.end('boom');
-      return;
-    }
-    if (url.pathname === '/teapot') {
-      res.statusCode = 418;
-      res.end('teapot');
-      return;
-    }
-    const body = await readBody(req);
-    res.setHeader('content-type', 'application/json');
-    res.setHeader('x-upstream', 'yes');
-    res.setHeader('connection', 'x-hop-test'); // connection-token: must not reach client
-    res.setHeader('x-hop-test', 'leaked');
-    res.end(
-      JSON.stringify({
-        method: req.method,
-        path: url.pathname,
-        query: url.search,
-        headers: {
-          'x-request-id': req.headers['x-request-id'],
-          'x-forwarded-for': req.headers['x-forwarded-for'],
-          'x-custom': req.headers['x-custom'],
-          'transfer-encoding': req.headers['transfer-encoding'],
-        },
-        body: body.toString('utf8'),
-      }),
-    );
+  upstream = createServer((req: IncomingMessage, res: ServerResponse) => {
+    void serveUpstream(req, res).catch(() => {
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    });
   });
   await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
   upstreamBase = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) =>
-    upstream.close((e) => (e ? reject(e) : resolve())),
-  );
+  await new Promise<void>((resolve, reject) => {
+    upstream.close((e) => {
+      if (e) reject(e);
+      else resolve();
+    });
+  });
 });
 
-async function startGateway(resolveTarget: (req: { url?: string }) => { upstreamBase: string; upstreamPath: string; timeoutMs: number } | null) {
+async function startGateway(
+  resolveTarget: (req: {
+    url?: string;
+  }) => { upstreamBase: string; upstreamPath: string; timeoutMs: number } | null,
+) {
   const app = Fastify({ logger: false });
   await app.register(proxyPlugin, {
     config,
-    resolveTarget: (req) =>
-      resolveTarget(req as unknown as { url?: string }),
+    resolveTarget: (req) => resolveTarget(req as unknown as { url?: string }),
     getClientIp: () => '10.0.0.7',
   });
   await app.listen({ port: 0, host: '127.0.0.1' });
@@ -97,7 +119,11 @@ describe('header filtering', () => {
   });
 
   it('strips hop-by-hop headers from inbound responses', () => {
-    const out = filterInboundHeaders({ connection: 'close', 'x-upstream': 'yes', 'content-type': 'text/plain' });
+    const out = filterInboundHeaders({
+      connection: 'close',
+      'x-upstream': 'yes',
+      'content-type': 'text/plain',
+    });
     expect(out).toEqual({ 'x-upstream': 'yes', 'content-type': 'text/plain' });
   });
 });
@@ -135,14 +161,20 @@ describe('proxying', () => {
       expect(body).toMatchObject({ method: 'GET', path: '/items/42', query: '?active=true' });
       expect((body['headers'] as Record<string, unknown>)['x-custom']).toBe('hello');
       expect((body['headers'] as Record<string, unknown>)['x-forwarded-for']).toBe('10.0.0.7');
-      expect((body['headers'] as Record<string, unknown>)['x-request-id']).toBe(res.headers.get('x-request-id'));
+      expect((body['headers'] as Record<string, unknown>)['x-request-id']).toBe(
+        res.headers.get('x-request-id'),
+      );
     } finally {
       await app.close();
     }
   });
 
   it('streams POST bodies and preserves the method', async () => {
-    const { app, base } = await startGateway(() => ({ upstreamBase, upstreamPath: '/submit', timeoutMs: 5000 }));
+    const { app, base } = await startGateway(() => ({
+      upstreamBase,
+      upstreamPath: '/submit',
+      timeoutMs: 5000,
+    }));
     try {
       const payload = JSON.stringify({ hello: 'world' });
       const res = await fetch(`${base}/submit`, {
@@ -159,7 +191,11 @@ describe('proxying', () => {
   });
 
   it('passes upstream status codes through (including 4xx/5xx)', async () => {
-    const { app, base } = await startGateway(() => ({ upstreamBase, upstreamPath: '/teapot', timeoutMs: 5000 }));
+    const { app, base } = await startGateway(() => ({
+      upstreamBase,
+      upstreamPath: '/teapot',
+      timeoutMs: 5000,
+    }));
     try {
       const res = await fetch(`${base}/teapot`);
       expect(res.status).toBe(418);
@@ -170,7 +206,11 @@ describe('proxying', () => {
   });
 
   it('maps an upstream timeout to 504 with a stable error code', async () => {
-    const { app, base } = await startGateway(() => ({ upstreamBase, upstreamPath: '/slow?ms=1500', timeoutMs: 300 }));
+    const { app, base } = await startGateway(() => ({
+      upstreamBase,
+      upstreamPath: '/slow?ms=1500',
+      timeoutMs: 300,
+    }));
     try {
       const res = await fetch(`${base}/slow`);
       expect(res.status).toBe(504);
@@ -199,7 +239,11 @@ describe('proxying', () => {
   });
 
   it('rejects oversized bodies with 413', async () => {
-    const { app, base } = await startGateway(() => ({ upstreamBase, upstreamPath: '/big', timeoutMs: 5000 }));
+    const { app, base } = await startGateway(() => ({
+      upstreamBase,
+      upstreamPath: '/big',
+      timeoutMs: 5000,
+    }));
     try {
       const res = await fetch(`${base}/big`, {
         method: 'POST',
@@ -227,7 +271,11 @@ describe('proxying', () => {
   });
 
   it('handles concurrent requests', async () => {
-    const { app, base } = await startGateway(() => ({ upstreamBase, upstreamPath: '/echo', timeoutMs: 5000 }));
+    const { app, base } = await startGateway(() => ({
+      upstreamBase,
+      upstreamPath: '/echo',
+      timeoutMs: 5000,
+    }));
     try {
       const results = await Promise.all(
         Array.from({ length: 25 }, (_, i) => fetch(`${base}/echo?n=${i}`).then((r) => r.status)),

@@ -47,8 +47,12 @@ describe('PluginManager', () => {
   it('rejects duplicate and invalid registrations', () => {
     const m = new PluginManager();
     m.register(createAddHeaderPlugin('x-a', '1'));
-    expect(() => m.register(createAddHeaderPlugin('x-a', '2'))).toThrow(/already registered/);
-    expect(() => m.register({} as GatewayPlugin)).toThrow(/Invalid plugin/);
+    expect(() => {
+      m.register(createAddHeaderPlugin('x-a', '2'));
+    }).toThrow(/already registered/);
+    expect(() => {
+      m.register({} as GatewayPlugin);
+    }).toThrow(/Invalid plugin/);
     expect(m.names()).toEqual(['add-header']);
   });
 
@@ -60,6 +64,7 @@ describe('PluginManager', () => {
       onRequest: async (req) => {
         order.push('first');
         req.headers['x-first'] = '1';
+        return undefined;
       },
     });
     m.register({
@@ -67,6 +72,7 @@ describe('PluginManager', () => {
       onRequest: async (req) => {
         order.push('second');
         req.headers['x-second'] = '2';
+        return undefined;
       },
     });
     const req = makeRequest();
@@ -87,6 +93,7 @@ describe('PluginManager', () => {
       name: 'second',
       onRequest: async () => {
         secondRan = true;
+        return undefined;
       },
     });
     const res = await m.runOnRequest(makeRequest(), makeRoute());
@@ -110,6 +117,7 @@ describe('PluginManager', () => {
       name: 'second',
       onRequest: async () => {
         secondRan = true;
+        return undefined;
       },
     });
     expect(await m.runOnRequest(makeRequest(), makeRoute())).toBeNull();
@@ -133,6 +141,7 @@ describe('PluginManager', () => {
       name: 'opt-reader',
       onRequest: async (_req, ctx) => {
         seen = ctx.options;
+        return undefined;
       },
     });
     const route = makeRoute({ pluginConfig: { 'opt-reader': { mode: 'strict' } } });
@@ -193,6 +202,8 @@ describe('PluginManager', () => {
 
   it('throws for a missing plugin directory', async () => {
     const m = new PluginManager();
-    await expect(m.loadFromDirectory('/no/such/dir')).rejects.toThrow(/Cannot read plugin directory/);
+    await expect(m.loadFromDirectory('/no/such/dir')).rejects.toThrow(
+      /Cannot read plugin directory/,
+    );
   });
 });

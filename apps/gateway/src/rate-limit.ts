@@ -50,7 +50,10 @@ export interface RateLimitKeyParts {
   userId?: string;
 }
 
-export function resolveRateLimitKey(strategy: RateLimitPolicy['keyStrategy'], parts: RateLimitKeyParts): string {
+export function resolveRateLimitKey(
+  strategy: RateLimitPolicy['keyStrategy'],
+  parts: RateLimitKeyParts,
+): string {
   switch (strategy) {
     case 'ip':
       return `rl:ip:${parts.ip}`;
@@ -61,7 +64,11 @@ export function resolveRateLimitKey(strategy: RateLimitPolicy['keyStrategy'], pa
     case 'route_user':
       return `rl:route:${parts.routeId}:user:${parts.userId ?? `ip:${parts.ip}`}`;
     default:
-      throw new GatewayError(ErrorCodes.CONFIGURATION_ERROR, 500, `Unknown rate limit key strategy.`);
+      throw new GatewayError(
+        ErrorCodes.CONFIGURATION_ERROR,
+        500,
+        `Unknown rate limit key strategy.`,
+      );
   }
 }
 

@@ -54,7 +54,7 @@ export interface PluginContext {
 export interface GatewayPlugin {
   name: string;
   version?: string;
-  onRequest?: (req: PluginRequest, ctx: PluginContext) => Promise<PluginShortCircuit | void>;
+  onRequest?: (req: PluginRequest, ctx: PluginContext) => Promise<PluginShortCircuit | undefined>;
   onResponse?: (res: PluginResponse, ctx: PluginContext) => Promise<void>;
   onError?: (err: unknown, ctx: PluginContext) => Promise<void>;
 }
@@ -122,18 +122,25 @@ export class PluginManager {
 
   pluginsForRoute(route: Route): GatewayPlugin[] {
     return this.plugins.filter((p) => {
-      const cfg = route.pluginConfig?.[p.name];
-      if (cfg !== null && typeof cfg === 'object' && (cfg as Record<string, unknown>)['enabled'] === false) {
+      const cfg = route.pluginConfig[p.name];
+      if (
+        cfg !== null &&
+        typeof cfg === 'object' &&
+        (cfg as Record<string, unknown>)['enabled'] === false
+      ) {
         return false;
       }
       return true;
     });
   }
 
-  private contextFor(route: Route, plugin: GatewayPlugin, state: Map<string, unknown>): PluginContext {
-    const cfg = route.pluginConfig?.[plugin.name];
-    const options =
-      cfg !== null && typeof cfg === 'object' ? (cfg as Record<string, unknown>) : {};
+  private contextFor(
+    route: Route,
+    plugin: GatewayPlugin,
+    state: Map<string, unknown>,
+  ): PluginContext {
+    const cfg = route.pluginConfig[plugin.name];
+    const options = cfg !== null && typeof cfg === 'object' ? (cfg as Record<string, unknown>) : {};
     return { state, options };
   }
 
@@ -182,8 +189,9 @@ export function createAddHeaderPlugin(header: string, value: string): GatewayPlu
   return {
     name: 'add-header',
     version: '1.0.0',
-    onRequest: async (req) => {
+    onRequest: (req) => {
       req.headers[header.toLowerCase()] = value;
+      return Promise.resolve(undefined);
     },
   };
 }

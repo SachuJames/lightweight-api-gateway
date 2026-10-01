@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { jwtVerify, SignJWT } from 'jose';
+import type { JWTPayload } from 'jose';
 import type { DbClient } from './db.js';
 import { getUserByEmail, type UserRecord } from './db/users.js';
 import { ErrorCodes, GatewayError } from './errors.js';
@@ -27,7 +28,10 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
-export async function signToken(user: Pick<UserRecord, 'id' | 'email' | 'role'>, auth: AuthConfig): Promise<string> {
+export async function signToken(
+  user: Pick<UserRecord, 'id' | 'email' | 'role'>,
+  auth: AuthConfig,
+): Promise<string> {
   return new SignJWT({ email: user.email, role: user.role })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
@@ -37,9 +41,11 @@ export async function signToken(user: Pick<UserRecord, 'id' | 'email' | 'role'>,
 }
 
 export async function verifyToken(token: string, secret: string): Promise<TokenClaims> {
-  let payload;
+  let payload: JWTPayload;
   try {
-    ({ payload } = await jwtVerify(token, new TextEncoder().encode(secret), { algorithms: ['HS256'] }));
+    ({ payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+      algorithms: ['HS256'],
+    }));
   } catch {
     throw new GatewayError(ErrorCodes.AUTHENTICATION_ERROR, 401, 'Invalid or expired token.');
   }
@@ -47,7 +53,11 @@ export async function verifyToken(token: string, secret: string): Promise<TokenC
   const email = payload['email'];
   const role = payload['role'];
   if (typeof sub !== 'string' || typeof email !== 'string' || typeof role !== 'string') {
-    throw new GatewayError(ErrorCodes.AUTHENTICATION_ERROR, 401, 'Token is missing required claims.');
+    throw new GatewayError(
+      ErrorCodes.AUTHENTICATION_ERROR,
+      401,
+      'Token is missing required claims.',
+    );
   }
   return { sub, email, role };
 }
@@ -93,7 +103,7 @@ export function registerAuthPlugin(app: FastifyInstance, auth: AuthConfig): void
 }
 
 /** Pre-handler: require any authenticated user. */
-export async function requireAuth(req: FastifyRequest, _reply: FastifyReply): Promise<void> {
+export function requireAuth(req: FastifyRequest, _reply: FastifyReply): void {
   if (!req.authUser) {
     throw new GatewayError(ErrorCodes.AUTHENTICATION_ERROR, 401, 'Authentication required.');
   }

@@ -25,7 +25,9 @@ export interface RequestContext {
   errorCode: string | null;
 }
 
-export function newRequestContext(partial: Pick<RequestContext, 'requestId' | 'method' | 'path' | 'clientIp'>): RequestContext {
+export function newRequestContext(
+  partial: Pick<RequestContext, 'requestId' | 'method' | 'path' | 'clientIp'>,
+): RequestContext {
   return {
     ...partial,
     startTimeMs: Date.now(),

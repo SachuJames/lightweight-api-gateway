@@ -48,7 +48,10 @@ export class GatewayError extends Error {
   }
 }
 
-export function toErrorResponse(err: unknown, requestId: string): { statusCode: number; body: ErrorBody } {
+export function toErrorResponse(
+  err: unknown,
+  requestId: string,
+): { statusCode: number; body: ErrorBody } {
   if (err instanceof GatewayError) {
     return {
       statusCode: err.statusCode,
@@ -65,7 +68,11 @@ export function toErrorResponse(err: unknown, requestId: string): { statusCode: 
   return {
     statusCode: 500,
     body: {
-      error: { code: ErrorCodes.INTERNAL_ERROR, message: 'An unexpected error occurred', requestId },
+      error: {
+        code: ErrorCodes.INTERNAL_ERROR,
+        message: 'An unexpected error occurred',
+        requestId,
+      },
     },
   };
 }

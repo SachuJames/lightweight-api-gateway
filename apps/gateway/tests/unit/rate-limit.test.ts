@@ -14,7 +14,9 @@ describe('resolveRateLimitKey', () => {
   });
 
   it('falls back to IP for user strategies when anonymous', () => {
-    expect(resolveRateLimitKey('user', { ip: '1.2.3.4', routeId: 'r1' })).toBe('rl:user:ip:1.2.3.4');
+    expect(resolveRateLimitKey('user', { ip: '1.2.3.4', routeId: 'r1' })).toBe(
+      'rl:user:ip:1.2.3.4',
+    );
     expect(resolveRateLimitKey('route_user', { ip: '1.2.3.4', routeId: 'r1' })).toBe(
       'rl:route:r1:user:ip:1.2.3.4',
     );

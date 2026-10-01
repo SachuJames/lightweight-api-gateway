@@ -10,13 +10,16 @@ export async function getCurrentVersion(client: DbClient): Promise<number> {
   return (res.rows[0] as { v: number }).v;
 }
 
-export async function bumpVersion(client: DbClient, createdBy: string | null, note: string | null): Promise<number> {
+export async function bumpVersion(
+  client: DbClient,
+  createdBy: string | null,
+  note: string | null,
+): Promise<number> {
   const current = await getCurrentVersion(client);
   const next = current + 1;
-  await client.query('INSERT INTO config_versions (version, created_by, note) VALUES ($1, $2, $3)', [
-    next,
-    createdBy,
-    note,
-  ]);
+  await client.query(
+    'INSERT INTO config_versions (version, created_by, note) VALUES ($1, $2, $3)',
+    [next, createdBy, note],
+  );
   return next;
 }

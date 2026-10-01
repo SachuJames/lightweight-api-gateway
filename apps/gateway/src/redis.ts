@@ -21,8 +21,8 @@ export function createRedis(url: string): Redis {
 
 export async function checkRedis(redis: Redis): Promise<boolean> {
   try {
-    const pong = await redis.ping();
-    return pong === 'PONG';
+    await redis.ping();
+    return true;
   } catch {
     return false;
   }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Route } from '@gateway/shared-types';
-import { isValidPattern, matchRoutes, normalizeUpstreamUrl, routeInputSchema } from '../../src/routing.js';
+import {
+  isValidPattern,
+  matchRoutes,
+  normalizeUpstreamUrl,
+  routeInputSchema,
+} from '../../src/routing.js';
 
 function makeRoute(overrides: Partial<Route> = {}): Route {
   return {
@@ -24,9 +29,12 @@ function makeRoute(overrides: Partial<Route> = {}): Route {
 }
 
 describe('isValidPattern', () => {
-  it.each(['/api/users/*', '/api/users/:id', '/api/users/new', '/health', '/*'])('accepts %s', (p) => {
-    expect(isValidPattern(p)).toBe(true);
-  });
+  it.each(['/api/users/*', '/api/users/:id', '/api/users/new', '/health', '/*'])(
+    'accepts %s',
+    (p) => {
+      expect(isValidPattern(p)).toBe(true);
+    },
+  );
 
   it.each([
     'api/users', // missing leading slash
@@ -95,7 +103,10 @@ describe('matchRoutes', () => {
   });
 
   it('prefers a param over a wildcard at equal priority', () => {
-    const routes = [makeRoute({ id: 'a', pathPattern: '/api/users/*' }), makeRoute({ id: 'b', pathPattern: '/api/users/:id' })];
+    const routes = [
+      makeRoute({ id: 'a', pathPattern: '/api/users/*' }),
+      makeRoute({ id: 'b', pathPattern: '/api/users/:id' }),
+    ];
     expect(matchRoutes(routes, 'GET', '/api/users/42')?.route.id).toBe('b');
   });
 

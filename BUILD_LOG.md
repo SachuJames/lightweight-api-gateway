@@ -191,3 +191,40 @@ Nothing here is aspirational: every claim below was observed.
 - Tests: 12 integration (auth, RBAC, route validation, policy ref guard,
   audit trail, reload notification over pub/sub, users); totals unit 96,
   integration 31.
+
+## Phase 15 — gateway server + request pipeline + SSE
+
+- `apps/gateway/src/server.ts`: `buildServer()` wiring the full pipeline —
+  health (`/health`, `/ready`), admin API, SSE analytics stream
+  (`/api/analytics/stream`, 2s snapshots, operator+), and the catch-all
+  gateway handler: route match -> auth -> plugin onRequest -> rate limit ->
+  circuit breaker `canRequest` -> proxy -> plugin onResponse/onError.
+  Metrics recorded per request; request ids validated/generated.
+- `apps/gateway/src/index.ts`: real entrypoint — env config, Postgres pool,
+  Redis x3, auto-migrate off unless `GATEWAY_AUTO_MIGRATE=1`, `ConfigReloader`
+  (pub/sub + 15s poll), `PLUGIN_DIR` loading, graceful shutdown.
+- Fixed a real ordering bug found by the circuit-breaker test: the breaker
+  outcome was recorded after `proxyRequest` resolved, but that only happens
+  after `dispatcher.close()` in the `finally`, so the record landed after the
+  response was delivered and the next request's `canRequest` saw stale state.
+  Fix: `onSettled` now fires before dispatcher teardown, and the breaker
+  record moved into `onSettled`, so state is visible to the next admitted
+  request. Same ordering now covers the metrics hook.
+- Tests: 11 integration (proxy pipeline, auth, rate limit, circuit breaker
+  open/half-open, plugin hooks, SSE, health); totals unit 96, integration 42.
+
+## Tooling — lint/format now enforced
+
+- `pnpm lint` was broken since Phase 1 (`typescript-eslint` imported by
+  eslint.config.js but never installed); installed it as a dev dependency.
+- Fixed all strictTypeChecked errors in `src/` (unnecessary assertions,
+  deprecated zod `.email()`/`.uuid()` -> `z.email()`/`z.uuid()`, unsafe `any`
+  handling in db mappers and auth, `void` in plugin hook union ->
+  `| undefined`, `require-await`, `no-console` left as warnings in the
+  entrypoint) and mechanical test issues. Test files get a relaxed override
+  (`no-unsafe-*`, `require-await` off: test fakes and `res.json()` any
+  boundaries are idiomatic); `**/fixtures/**` and `**/migrations/**` ignored;
+  config files use `disableTypeChecked`.
+- `pnpm lint` (eslint .) and `tsc` typecheck are clean; `prettier --check`
+  clean for all source/test files (12 pre-existing config files like
+  package.json use single-line JSON style and remain as-is).

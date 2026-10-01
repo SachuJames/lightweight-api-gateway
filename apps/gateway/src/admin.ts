@@ -3,6 +3,7 @@ import type { Redis } from 'ioredis';
 import type { Pool, PoolClient } from 'pg';
 import { z } from 'zod';
 import { AuditActions, AuditService } from './audit-service.js';
+import type { AuditAction } from './audit-service.js';
 import {
   authenticateUser,
   hashPassword,
@@ -90,7 +91,7 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
   registerAuthPlugin(app, auth);
 
   app.setErrorHandler((err, req, reply) => {
-    const requestId = String(req.id);
+    const requestId = req.id;
     if (err instanceof GatewayError) {
       const { statusCode, body } = toErrorResponse(err, requestId);
       void reply.status(statusCode).send(body);
@@ -104,18 +105,14 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     void reply.status(statusCode).send(body);
   });
 
-  app.setNotFoundHandler((req, reply) => {
-    const { statusCode, body } = toErrorResponse(
-      new GatewayError(ErrorCodes.ROUTE_NOT_FOUND, 404, `No admin route for ${req.method} ${req.url}.`),
-      String(req.id),
-    );
-    void reply.status(statusCode).send(body);
-  });
+  // NOTE: no setNotFoundHandler here. When composed into the full server
+  // (server.ts), the gateway pipeline's not-found handler turns unmatched
+  // paths into ROUTE_NOT_FOUND JSON. Standalone, Fastify's default 404 applies.
 
   /** Runs a mutation transactionally, then notifies instances of the new version. */
   async function mutate<T>(
     req: FastifyRequest,
-    action: string,
+    action: AuditAction,
     resourceType: string,
     resourceId: string | null,
     fn: (client: PoolClient) => Promise<{ result: T; before?: unknown }>,
@@ -123,14 +120,17 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     const actor = actorOf(req);
     const { result, version } = await withTransaction(pool, async (client) => {
       const { result, before } = await fn(client);
-      const version = await bumpVersion(client, actor, `${action} ${resourceType}${resourceId ? ` ${resourceId}` : ''}`);
-      const call: { before?: unknown } = before === undefined ? {} : { before };
-      await new AuditService(client).record(
-        { actor, requestId: String(req.id) },
-        action,
-        resourceType,
-        { resourceId, after: result, ...call },
+      const version = await bumpVersion(
+        client,
+        actor,
+        `${action} ${resourceType}${resourceId ? ` ${resourceId}` : ''}`,
       );
+      const call: { before?: unknown } = before === undefined ? {} : { before };
+      await new AuditService(client).record({ actor, requestId: req.id }, action, resourceType, {
+        resourceId,
+        after: result,
+        ...call,
+      });
       return { result, version };
     });
     await notifyConfigChange(publisher, version);
@@ -139,10 +139,13 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
 
   // --- auth ---------------------------------------------------------------
   app.post('/api/auth/login', async (req, reply: FastifyReply) => {
-    const { email, password } = parse(z.object({ email: z.string().email(), password: z.string().min(1) }), req.body);
+    const { email, password } = parse(
+      z.object({ email: z.email(), password: z.string().min(1) }),
+      req.body,
+    );
     const user = await authenticateUser(pool, email, password);
     const token = await signToken(user, auth);
-    await audit.record({ actor: user.email, requestId: String(req.id) }, AuditActions.authLogin, 'session');
+    await audit.record({ actor: user.email, requestId: req.id }, AuditActions.authLogin, 'session');
     return reply.send({ token, user });
   });
 
@@ -151,15 +154,25 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     return { routes: await listRoutes(pool) };
   });
 
-  app.post('/api/routes', { preHandler: [requireRole('admin')] }, async (req, reply: FastifyReply) => {
-    const input = parse(routeInputSchema, req.body);
-    const { result } = await mutate(req, AuditActions.routeCreate, 'route', null, async (client) => {
-      await assertPoliciesExist(client, input.rateLimitPolicyId, input.circuitBreakerPolicyId);
-      const result = await insertRoute(client, input);
-      return { result };
-    });
-    return reply.status(201).send({ route: result });
-  });
+  app.post(
+    '/api/routes',
+    { preHandler: [requireRole('admin')] },
+    async (req, reply: FastifyReply) => {
+      const input = parse(routeInputSchema, req.body);
+      const { result } = await mutate(
+        req,
+        AuditActions.routeCreate,
+        'route',
+        null,
+        async (client) => {
+          await assertPoliciesExist(client, input.rateLimitPolicyId, input.circuitBreakerPolicyId);
+          const result = await insertRoute(client, input);
+          return { result };
+        },
+      );
+      return reply.status(201).send({ route: result });
+    },
+  );
 
   app.get<{ Params: { id: string } }>(
     '/api/routes/:id',
@@ -176,13 +189,20 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     { preHandler: [requireRole('admin')] },
     async (req, reply: FastifyReply) => {
       const patch = parse(routeInputSchema.partial(), req.body);
-      const { result } = await mutate(req, AuditActions.routeUpdate, 'route', req.params.id, async (client) => {
-        const before = await getRoute(client, req.params.id);
-        if (!before) throw notFound('Route', req.params.id);
-        await assertPoliciesExist(client, patch.rateLimitPolicyId, patch.circuitBreakerPolicyId);
-        const result = await updateRoute(client, req.params.id, patch);
-        return { result: result!, before };
-      });
+      const { result } = await mutate(
+        req,
+        AuditActions.routeUpdate,
+        'route',
+        req.params.id,
+        async (client) => {
+          const before = await getRoute(client, req.params.id);
+          if (!before) throw notFound('Route', req.params.id);
+          await assertPoliciesExist(client, patch.rateLimitPolicyId, patch.circuitBreakerPolicyId);
+          const updated = await updateRoute(client, req.params.id, patch);
+          if (!updated) throw notFound('Route', req.params.id);
+          return { result: updated, before };
+        },
+      );
       return reply.send({ route: result });
     },
   );
@@ -191,39 +211,65 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     '/api/routes/:id',
     { preHandler: [requireRole('admin')] },
     async (req) => {
-      const { result } = await mutate(req, AuditActions.routeDelete, 'route', req.params.id, async (client) => {
-        const before = await deleteRoute(client, req.params.id);
-        if (!before) throw notFound('Route', req.params.id);
-        return { result: { deleted: true }, before };
-      });
+      const { result } = await mutate(
+        req,
+        AuditActions.routeDelete,
+        'route',
+        req.params.id,
+        async (client) => {
+          const before = await deleteRoute(client, req.params.id);
+          if (!before) throw notFound('Route', req.params.id);
+          return { result: { deleted: true }, before };
+        },
+      );
       return result;
     },
   );
 
   // --- rate limit policies ---------------------------------------------------
-  app.get('/api/rate-limit-policies', { preHandler: [requireRole('admin', 'operator', 'viewer')] }, async () => {
-    return { policies: await listRateLimitPolicies(pool) };
-  });
+  app.get(
+    '/api/rate-limit-policies',
+    { preHandler: [requireRole('admin', 'operator', 'viewer')] },
+    async () => {
+      return { policies: await listRateLimitPolicies(pool) };
+    },
+  );
 
-  app.post('/api/rate-limit-policies', { preHandler: [requireRole('admin')] }, async (req, reply: FastifyReply) => {
-    const input = parse(rateLimitPolicyInputSchema, req.body);
-    const { result } = await mutate(req, AuditActions.rateLimitPolicyCreate, 'rate_limit_policy', null, async (client) => {
-      const result = await insertRateLimitPolicy(client, input);
-      return { result };
-    });
-    return reply.status(201).send({ policy: result });
-  });
+  app.post(
+    '/api/rate-limit-policies',
+    { preHandler: [requireRole('admin')] },
+    async (req, reply: FastifyReply) => {
+      const input = parse(rateLimitPolicyInputSchema, req.body);
+      const { result } = await mutate(
+        req,
+        AuditActions.rateLimitPolicyCreate,
+        'rate_limit_policy',
+        null,
+        async (client) => {
+          const result = await insertRateLimitPolicy(client, input);
+          return { result };
+        },
+      );
+      return reply.status(201).send({ policy: result });
+    },
+  );
 
   app.put<{ Params: { id: string } }>(
     '/api/rate-limit-policies/:id',
     { preHandler: [requireRole('admin')] },
     async (req, reply: FastifyReply) => {
       const patch = parse(rateLimitPolicyInputSchema.partial(), req.body);
-      const { result } = await mutate(req, AuditActions.rateLimitPolicyUpdate, 'rate_limit_policy', req.params.id, async (client) => {
-        const result = await updateRateLimitPolicy(client, req.params.id, patch);
-        if (!result) throw notFound('Rate limit policy', req.params.id);
-        return { result };
-      });
+      const { result } = await mutate(
+        req,
+        AuditActions.rateLimitPolicyUpdate,
+        'rate_limit_policy',
+        req.params.id,
+        async (client) => {
+          const result = await updateRateLimitPolicy(client, req.params.id, patch);
+          if (!result) throw notFound('Rate limit policy', req.params.id);
+          return { result };
+        },
+      );
       return reply.send({ policy: result });
     },
   );
@@ -232,43 +278,73 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     '/api/rate-limit-policies/:id',
     { preHandler: [requireRole('admin')] },
     async (req) => {
-      const { result } = await mutate(req, AuditActions.rateLimitPolicyDelete, 'rate_limit_policy', req.params.id, async (client) => {
-        const used = await countRoutesUsingPolicy(client, 'rate_limit_policy_id', req.params.id);
-        if (used > 0) {
-          throw new GatewayError(ErrorCodes.CONFLICT, 409, `Policy is referenced by ${used} route(s).`);
-        }
-        const before = await deleteRateLimitPolicy(client, req.params.id);
-        if (!before) throw notFound('Rate limit policy', req.params.id);
-        return { result: { deleted: true }, before };
-      });
+      const { result } = await mutate(
+        req,
+        AuditActions.rateLimitPolicyDelete,
+        'rate_limit_policy',
+        req.params.id,
+        async (client) => {
+          const used = await countRoutesUsingPolicy(client, 'rate_limit_policy_id', req.params.id);
+          if (used > 0) {
+            throw new GatewayError(
+              ErrorCodes.CONFLICT,
+              409,
+              `Policy is referenced by ${used} route(s).`,
+            );
+          }
+          const before = await deleteRateLimitPolicy(client, req.params.id);
+          if (!before) throw notFound('Rate limit policy', req.params.id);
+          return { result: { deleted: true }, before };
+        },
+      );
       return result;
     },
   );
 
   // --- circuit breaker policies -----------------------------------------------
-  app.get('/api/circuit-breaker-policies', { preHandler: [requireRole('admin', 'operator', 'viewer')] }, async () => {
-    return { policies: await listCircuitBreakerPolicies(pool) };
-  });
+  app.get(
+    '/api/circuit-breaker-policies',
+    { preHandler: [requireRole('admin', 'operator', 'viewer')] },
+    async () => {
+      return { policies: await listCircuitBreakerPolicies(pool) };
+    },
+  );
 
-  app.post('/api/circuit-breaker-policies', { preHandler: [requireRole('admin')] }, async (req, reply: FastifyReply) => {
-    const input = parse(circuitBreakerPolicyInputSchema, req.body);
-    const { result } = await mutate(req, AuditActions.circuitPolicyCreate, 'circuit_breaker_policy', null, async (client) => {
-      const result = await insertCircuitBreakerPolicy(client, input);
-      return { result };
-    });
-    return reply.status(201).send({ policy: result });
-  });
+  app.post(
+    '/api/circuit-breaker-policies',
+    { preHandler: [requireRole('admin')] },
+    async (req, reply: FastifyReply) => {
+      const input = parse(circuitBreakerPolicyInputSchema, req.body);
+      const { result } = await mutate(
+        req,
+        AuditActions.circuitPolicyCreate,
+        'circuit_breaker_policy',
+        null,
+        async (client) => {
+          const result = await insertCircuitBreakerPolicy(client, input);
+          return { result };
+        },
+      );
+      return reply.status(201).send({ policy: result });
+    },
+  );
 
   app.put<{ Params: { id: string } }>(
     '/api/circuit-breaker-policies/:id',
     { preHandler: [requireRole('admin')] },
     async (req, reply: FastifyReply) => {
       const patch = parse(circuitBreakerPolicyInputSchema.partial(), req.body);
-      const { result } = await mutate(req, AuditActions.circuitPolicyUpdate, 'circuit_breaker_policy', req.params.id, async (client) => {
-        const result = await updateCircuitBreakerPolicy(client, req.params.id, patch);
-        if (!result) throw notFound('Circuit breaker policy', req.params.id);
-        return { result };
-      });
+      const { result } = await mutate(
+        req,
+        AuditActions.circuitPolicyUpdate,
+        'circuit_breaker_policy',
+        req.params.id,
+        async (client) => {
+          const result = await updateCircuitBreakerPolicy(client, req.params.id, patch);
+          if (!result) throw notFound('Circuit breaker policy', req.params.id);
+          return { result };
+        },
+      );
       return reply.send({ policy: result });
     },
   );
@@ -277,15 +353,29 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     '/api/circuit-breaker-policies/:id',
     { preHandler: [requireRole('admin')] },
     async (req) => {
-      const { result } = await mutate(req, AuditActions.circuitPolicyDelete, 'circuit_breaker_policy', req.params.id, async (client) => {
-        const used = await countRoutesUsingPolicy(client, 'circuit_breaker_policy_id', req.params.id);
-        if (used > 0) {
-          throw new GatewayError(ErrorCodes.CONFLICT, 409, `Policy is referenced by ${used} route(s).`);
-        }
-        const before = await deleteCircuitBreakerPolicy(client, req.params.id);
-        if (!before) throw notFound('Circuit breaker policy', req.params.id);
-        return { result: { deleted: true }, before };
-      });
+      const { result } = await mutate(
+        req,
+        AuditActions.circuitPolicyDelete,
+        'circuit_breaker_policy',
+        req.params.id,
+        async (client) => {
+          const used = await countRoutesUsingPolicy(
+            client,
+            'circuit_breaker_policy_id',
+            req.params.id,
+          );
+          if (used > 0) {
+            throw new GatewayError(
+              ErrorCodes.CONFLICT,
+              409,
+              `Policy is referenced by ${used} route(s).`,
+            );
+          }
+          const before = await deleteCircuitBreakerPolicy(client, req.params.id);
+          if (!before) throw notFound('Circuit breaker policy', req.params.id);
+          return { result: { deleted: true }, before };
+        },
+      );
       return result;
     },
   );
@@ -295,22 +385,36 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     return { users: await listUsers(pool) };
   });
 
-  app.post('/api/users', { preHandler: [requireRole('admin')] }, async (req, reply: FastifyReply) => {
-    const input = parse(
-      z.object({
-        email: z.string().email().max(200),
-        password: z.string().min(12).max(200),
-        role: z.enum(ROLES),
-      }),
-      req.body,
-    );
-    const { result } = await mutate(req, AuditActions.userCreate, 'user', null, async (client) => {
-      const passwordHash = await hashPassword(input.password);
-      const user = await createUser(client, { email: input.email, passwordHash, role: input.role });
-      return { result: { id: user.id, email: user.email, role: user.role } };
-    });
-    return reply.status(201).send({ user: result });
-  });
+  app.post(
+    '/api/users',
+    { preHandler: [requireRole('admin')] },
+    async (req, reply: FastifyReply) => {
+      const input = parse(
+        z.object({
+          email: z.email().max(200),
+          password: z.string().min(12).max(200),
+          role: z.enum(ROLES),
+        }),
+        req.body,
+      );
+      const { result } = await mutate(
+        req,
+        AuditActions.userCreate,
+        'user',
+        null,
+        async (client) => {
+          const passwordHash = await hashPassword(input.password);
+          const user = await createUser(client, {
+            email: input.email,
+            passwordHash,
+            role: input.role,
+          });
+          return { result: { id: user.id, email: user.email, role: user.role } };
+        },
+      );
+      return reply.status(201).send({ user: result });
+    },
+  );
 
   app.delete<{ Params: { id: string } }>(
     '/api/users/:id',
@@ -319,11 +423,17 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
       if (req.authUser?.sub === req.params.id) {
         throw new GatewayError(ErrorCodes.BAD_REQUEST, 400, 'You cannot delete your own account.');
       }
-      const { result } = await mutate(req, AuditActions.userDelete, 'user', req.params.id, async (client) => {
-        const deleted = await deleteUser(client, req.params.id);
-        if (!deleted) throw notFound('User', req.params.id);
-        return { result: { deleted: true } };
-      });
+      const { result } = await mutate(
+        req,
+        AuditActions.userDelete,
+        'user',
+        req.params.id,
+        async (client) => {
+          const deleted = await deleteUser(client, req.params.id);
+          if (!deleted) throw notFound('User', req.params.id);
+          return { result: { deleted: true } };
+        },
+      );
       return result;
     },
   );
@@ -350,9 +460,13 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
   );
 
   // --- config ----------------------------------------------------------------------
-  app.get('/api/config/version', { preHandler: [requireRole('admin', 'operator', 'viewer')] }, async () => {
-    return { version: store.version(), dbVersion: await getCurrentVersion(pool) };
-  });
+  app.get(
+    '/api/config/version',
+    { preHandler: [requireRole('admin', 'operator', 'viewer')] },
+    async () => {
+      return { version: store.version(), dbVersion: await getCurrentVersion(pool) };
+    },
+  );
 
   app.post('/api/config/reload', { preHandler: [requireRole('admin', 'operator')] }, async () => {
     const version = await getCurrentVersion(pool);
@@ -361,7 +475,7 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
   });
 
   // --- metrics -----------------------------------------------------------------------
-  app.get('/api/metrics', { preHandler: [requireRole('admin', 'operator', 'viewer')] }, async () => {
+  app.get('/api/metrics', { preHandler: [requireRole('admin', 'operator', 'viewer')] }, () => {
     return metrics.snapshot();
   });
 
@@ -370,14 +484,25 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     rateLimitPolicyId: string | null | undefined,
     circuitBreakerPolicyId: string | null | undefined,
   ): Promise<void> {
-    if (rateLimitPolicyId != null && !(await policyExists(client, 'rate_limit_policies', rateLimitPolicyId))) {
-      throw new GatewayError(ErrorCodes.UNPROCESSABLE, 422, `Rate limit policy ${rateLimitPolicyId} does not exist.`);
+    if (
+      rateLimitPolicyId != null &&
+      !(await policyExists(client, 'rate_limit_policies', rateLimitPolicyId))
+    ) {
+      throw new GatewayError(
+        ErrorCodes.UNPROCESSABLE,
+        422,
+        `Rate limit policy ${rateLimitPolicyId} does not exist.`,
+      );
     }
     if (
       circuitBreakerPolicyId != null &&
       !(await policyExists(client, 'circuit_breaker_policies', circuitBreakerPolicyId))
     ) {
-      throw new GatewayError(ErrorCodes.UNPROCESSABLE, 422, `Circuit breaker policy ${circuitBreakerPolicyId} does not exist.`);
+      throw new GatewayError(
+        ErrorCodes.UNPROCESSABLE,
+        422,
+        `Circuit breaker policy ${circuitBreakerPolicyId} does not exist.`,
+      );
     }
   }
 }

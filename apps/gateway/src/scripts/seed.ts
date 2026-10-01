@@ -1,5 +1,4 @@
 import bcrypt from 'bcryptjs';
-import { Pool } from 'pg';
 import { closePool, getPool, withTransaction } from '../db.js';
 import { getCurrentVersion } from '../db/config-versions.js';
 import { createUser } from '../db/users.js';
@@ -78,7 +77,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
+main().catch((err: unknown) => {
   // eslint-disable-next-line no-console
   console.error(err);
   process.exit(1);

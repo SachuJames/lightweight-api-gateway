@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { HttpMethod, Route } from '@gateway/shared-types';
+import type { Route } from '@gateway/shared-types';
 
 /**
  * Routing engine.
@@ -74,8 +74,8 @@ export const routeInputSchema = z.object({
   enabled: z.boolean().default(true),
   priority: z.number().int().min(0).max(10_000).default(100),
   authRequired: z.boolean().default(false),
-  rateLimitPolicyId: z.string().uuid().nullable().default(null),
-  circuitBreakerPolicyId: z.string().uuid().nullable().default(null),
+  rateLimitPolicyId: z.uuid().nullable().default(null),
+  circuitBreakerPolicyId: z.uuid().nullable().default(null),
   timeoutMs: z.number().int().positive().max(300_000).default(30_000),
   pluginConfig: z.record(z.string(), z.unknown()).default({}),
 });
@@ -152,7 +152,11 @@ function stripQuery(url: string): { path: string; query: string } {
   return { path: url.slice(0, q), query: url.slice(q) };
 }
 
-export function matchCompiled(compiled: CompiledRoute[], method: string, url: string): RouteMatch | null {
+export function matchCompiled(
+  compiled: CompiledRoute[],
+  method: string,
+  url: string,
+): RouteMatch | null {
   const { path, query } = stripQuery(url);
   const normalized = path.length > 1 ? path.replace(/\/+$/, '') : path;
 
@@ -186,9 +190,5 @@ export function matchCompiled(compiled: CompiledRoute[], method: string, url: st
 
 /** Match against raw route records (compiles on the fly; snapshots pre-compile). */
 export function matchRoutes(routes: Route[], method: string, url: string): RouteMatch | null {
-  return matchCompiled(
-    routes.map(compileRoute),
-    method,
-    url,
-  );
+  return matchCompiled(routes.map(compileRoute), method, url);
 }
