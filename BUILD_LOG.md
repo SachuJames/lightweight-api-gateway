@@ -268,3 +268,21 @@ Nothing here is aspirational: every claim below was observed.
   exponential-backoff reconnect. Documented in `docs/security.md`.
 - Every number on the dashboard comes from the live metrics snapshot; empty
   states say so explicitly instead of showing zeros as data.
+
+## Phase 18 — TLS
+
+- `scripts/generate-dev-certs.sh` creates a self-signed cert for localhost
+  (SAN: DNS localhost/gateway, IP 127.0.0.1) in `.local/certs/`; dev-only, the
+  script says so.
+- `index.ts` reads `TLS_CERT_PATH`/`TLS_KEY_PATH` when `TLS_ENABLED=true`,
+  passes key/cert into the Fastify instance (`server.ts` accepts a `tls` dep),
+  and starts an optional plain-HTTP listener that 301-redirects everything to
+  the HTTPS port when `HTTPS_REDIRECT=true`. Both are closed on shutdown.
+- Verified live: HTTPS on :8443 (`/health`, `/ready` ok), 301 redirect from
+  the HTTP listener, admin login + route creation + a proxied request to a
+  throwaway upstream all over TLS, SSE analytics stream over TLS, cert
+  details via openssl s_client.
+- Real bug found by the TLS test: the SSE endpoint used `requireRole('operator')`,
+  which locked out admins. Fixed properly with a role hierarchy in `auth.ts`:
+  viewer < operator < admin, so `requireRole('operator')` admits operators and
+  admins. Added 6 unit tests; now 102 unit + 42 integration, all passing.

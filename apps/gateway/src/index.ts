@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import type { FastifyInstance } from 'fastify';
 import { Pool } from 'pg';
 import { AuditService } from './audit-service.js';
 import { CircuitBreakerRegistry } from './circuit-breaker.js';
@@ -70,6 +72,14 @@ async function main(): Promise<void> {
     }
   }
 
+  const tls =
+    config.tlsEnabled
+      ? {
+          key: await readFile(config.tlsKeyPath),
+          cert: await readFile(config.tlsCertPath),
+        }
+      : undefined;
+
   const app = await buildServer({
     config,
     pool,
@@ -81,7 +91,12 @@ async function main(): Promise<void> {
     breakers: new CircuitBreakerRegistry(),
     auth: { jwtSecret: config.jwtSecret, tokenTtlSec: parseTtlSec(config.jwtExpiresIn) },
     audit: new AuditService(pool),
+    ...(tls ? { tls } : {}),
   });
+
+  // Optional plain-HTTP listener that redirects everything to HTTPS.
+  // Declared up here so the shutdown handler below can close it.
+  let redirectApp: FastifyInstance | undefined;
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`Received ${signal}, shutting down...`);
@@ -89,6 +104,11 @@ async function main(): Promise<void> {
       await app.close();
     } catch (err) {
       console.error('Error closing server:', err);
+    }
+    if (redirectApp !== undefined) {
+      await redirectApp.close().catch((err: unknown) => {
+        console.error('Error closing redirect server:', err);
+      });
     }
     reloader.stop().catch((err: unknown) => {
       console.error('Error stopping reloader:', err);
@@ -104,9 +124,20 @@ async function main(): Promise<void> {
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
   console.log(
-    `Gateway listening on :${config.port} (config v${store.current().version}, ` +
-      `${store.current().routes.length} routes).`,
+    `${config.tlsEnabled ? 'HTTPS' : 'HTTP'} gateway listening on :${config.port} ` +
+      `(config v${store.current().version}, ${store.current().routes.length} routes).`,
   );
+
+  if (config.tlsEnabled && config.httpsRedirect) {
+    const { default: Fastify } = await import('fastify');
+    redirectApp = Fastify({ logger: false });
+    redirectApp.all('*', async (req, reply) => {
+      const host = (req.headers.host ?? 'localhost').split(':')[0];
+      return reply.redirect(`https://${host}:${config.httpsPort}${req.url}`, 301);
+    });
+    await redirectApp.listen({ port: 8080, host: '0.0.0.0' });
+    console.log(`HTTP->HTTPS redirect listening on :8080, targeting :${config.httpsPort}.`);
+  }
 }
 
 main().catch((err: unknown) => {

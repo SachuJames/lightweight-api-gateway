@@ -109,14 +109,33 @@ export function requireAuth(req: FastifyRequest, _reply: FastifyReply): void {
   }
 }
 
-/** Pre-handler factory: require one of the given roles. */
+/**
+ * Pre-handler factory: require at least the lowest-ranked of the given roles.
+ * Roles are hierarchical: viewer < operator < admin, so `requireRole('operator')`
+ * admits operators and admins. Unknown roles never satisfy a requirement.
+ */
 export function requireRole(...roles: string[]) {
+  const required = Math.min(...roles.map(roleRank));
   return async (req: FastifyRequest, _reply: FastifyReply): Promise<void> => {
     if (!req.authUser) {
       throw new GatewayError(ErrorCodes.AUTHENTICATION_ERROR, 401, 'Authentication required.');
     }
-    if (!roles.includes(req.authUser.role)) {
+    if (roleRank(req.authUser.role) < required) {
       throw new GatewayError(ErrorCodes.AUTHORIZATION_ERROR, 403, 'Insufficient permissions.');
     }
   };
+}
+
+/** Numeric rank for the role hierarchy; unknown roles rank below everything. */
+export function roleRank(role: string): number {
+  switch (role) {
+    case 'viewer':
+      return 0;
+    case 'operator':
+      return 1;
+    case 'admin':
+      return 2;
+    default:
+      return -1;
+  }
 }

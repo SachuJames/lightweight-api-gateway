@@ -3,6 +3,8 @@ import {
   authenticateUser,
   extractBearerToken,
   hashPassword,
+  requireRole,
+  roleRank,
   signToken,
   verifyPassword,
   verifyToken,
@@ -100,5 +102,50 @@ describe('authenticateUser', () => {
     await expect(authenticateUser(stubClient, 'a@b.c', 'wrong')).rejects.toMatchObject({
       statusCode: 401,
     });
+  });
+});
+
+describe('requireRole (hierarchy: viewer < operator < admin)', () => {
+  const reqFor = (role?: string) => ({
+    authUser: role ? { id: 'u', email: 'e', role } : undefined,
+  });
+
+  it('ranks unknown roles below everything', () => {
+    expect(roleRank('superuser')).toBeLessThan(roleRank('viewer'));
+  });
+
+  it('admits admins where operators are required', async () => {
+    await expect(
+      requireRole('operator')(reqFor('admin') as never, {} as never),
+    ).resolves.toBeUndefined();
+  });
+
+  it('admits operators and admins for viewer-level routes', async () => {
+    for (const role of ['viewer', 'operator', 'admin']) {
+      await expect(
+        requireRole('viewer')(reqFor(role) as never, {} as never),
+      ).resolves.toBeUndefined();
+    }
+  });
+
+  it('rejects viewers from operator/admin routes with 403', async () => {
+    await expect(
+      requireRole('operator')(reqFor('viewer') as never, {} as never),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      code: 'AUTHORIZATION_ERROR',
+    });
+  });
+
+  it('rejects unauthenticated requests with 401', async () => {
+    await expect(requireRole('viewer')(reqFor() as never, {} as never)).rejects.toMatchObject({
+      statusCode: 401,
+    });
+  });
+
+  it('uses the lowest rank when several roles are listed', async () => {
+    await expect(
+      requireRole('admin', 'operator')(reqFor('operator') as never, {} as never),
+    ).resolves.toBeUndefined();
   });
 });

@@ -31,6 +31,8 @@ export interface ServerDeps {
   breakers: CircuitBreakerRegistry;
   auth: AuthConfig;
   audit: AuditService;
+  /** When set, the server listens with TLS using this key/cert pair. */
+  tls?: { key: Buffer; cert: Buffer };
 }
 
 function errorBody(code: string, message: string, requestId: string): ErrorBody {
@@ -51,6 +53,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     logger: loggerOptions,
     trustProxy: true,
     disableRequestLogging: true,
+    ...(deps.tls ? { https: { key: deps.tls.key, cert: deps.tls.cert } } : {}),
   });
 
   await app.register(cors, {
