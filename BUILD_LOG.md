@@ -325,3 +325,21 @@ Nothing here is aspirational: every claim below was observed.
 - Honest limitation: no container runtime in this environment, so the images
   were NOT built or run here; `docker compose config` validates the file and
   the compose comments say so.
+
+## Phase 21 — end-to-end tests
+
+- `apps/gateway/tests/integration/e2e.test.ts`: full gateway instances built
+  with `buildServer` (not stubs), real upstream HTTP servers on ephemeral
+  ports, and a real `ConfigReloader` per instance, exactly like production.
+- The 11-step zero-downtime route reconfiguration test: traffic flows,
+  version baseline, admin repoints upstream (version bumps), the instance
+  picks it up with no restart, a 30-request burst mid-swap all succeed
+  (served by old or new upstream, zero 5xx), disable 404s while a control
+  route keeps serving, re-enable restores traffic, delete 404s, every
+  mutation advanced the config version, and the audit log records the
+  updates and the delete.
+- Two-instance convergence test: a route created through instance A's admin
+  API is served by instance B after the Redis notification; an update through
+  B converges back onto A; both report the same config version.
+- 16 new tests, all passing. Totals: 102 unit + 58 integration = 160 gateway
+  tests, plus 7 admin UI tests.
