@@ -118,3 +118,13 @@ Nothing here is aspirational: every claim below was observed.
 - Tests: 5 unit (key resolution) + 7 integration against real Redis
   (capacity/deny, refill, bucket isolation, fail-open, fail-closed,
   misconfigured policy); totals: unit 67, integration 16.
+
+## Phase 9 — circuit breaker
+
+- `apps/gateway/src/circuit-breaker.ts`: per-instance in-memory breaker
+  (documented trade-off: no cross-instance consensus needed to protect an
+  upstream, no Redis round trip per request). Rolling-window failure counting,
+  open/half-open/closed transitions, concurrent probe limiting, timeout
+  counting toggle, breaker reset when the policy id changes, per-route
+  isolation.
+- Tests: 10 unit with an injectable clock; total unit 77.
