@@ -35,3 +35,20 @@ Nothing here is aspirational: every claim below was observed.
   `describeConfig()` exposes only non-secret diagnostics.
 - Tests: 7 unit tests pass (defaults, CSV parsing, invalid port, missing values,
   production secret refusal, secret redaction in diagnostics).
+
+## Phase 3 — reverse proxy engine
+
+- `apps/gateway/src/proxy.ts`: undici-based streaming reverse proxy. Forwards
+  method/path/query/headers/body both directions without buffering; strips
+  hop-by-hop headers (including `Connection`-listed tokens); validates or
+  generates `X-Request-ID`; appends `X-Forwarded-For`; enforces body size via a
+  byte-counting stream transform (413); per-request total timeout via
+  `AbortSignal.timeout`; connect timeout via undici Agent. Errors map to stable
+  codes: 504 UPSTREAM_TIMEOUT, 503 UPSTREAM_UNAVAILABLE, 502 UPSTREAM_ERROR,
+  404 ROUTE_NOT_FOUND, 413 PAYLOAD_TOO_LARGE.
+- Learned: Fastify v5 `addContentTypeParser('*', ...)` does NOT override the
+  built-in JSON/text parsers, so the plugin replaces those explicitly in its
+  encapsulated context to keep raw body streams readable.
+- Tests: 13 proxy tests pass (GET/POST, headers, query, body streaming,
+  status passthrough, timeout, refused, oversized, 404, concurrency) against a
+  real local upstream. Total unit: 20 passed.
