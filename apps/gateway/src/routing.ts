@@ -86,7 +86,7 @@ export function normalizeUpstreamUrl(url: string): string {
   return url.replace(/\/+$/, '');
 }
 
-interface CompiledRoute {
+export interface CompiledRoute {
   route: Route;
   regex: RegExp;
   paramNames: string[];

@@ -82,3 +82,13 @@ Nothing here is aspirational: every claim below was observed.
   directly instead of the full config.
 - Tests: 9 integration tests pass against a fresh `gateway_test` DB
   (CRUD, ordering, rollback, audit, version bump, users).
+
+## Phase 6 — configuration snapshots
+
+- `apps/gateway/src/config-service.ts`: `loadSnapshot()` reads routes +
+  policies + current version from Postgres and compiles patterns once;
+  `ConfigStore` holds the active immutable snapshot and swaps it with a single
+  assignment on `refresh()` (atomic in Node's single thread, so the hot path
+  never sees a half-loaded config). `CompiledRoute` is now exported.
+- Tests: 2 unit tests (snapshot load from a stub client, atomic swap
+  semantics); total unit 50 pass.
