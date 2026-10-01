@@ -153,3 +153,15 @@ Nothing here is aspirational: every claim below was observed.
 - Tests: 10 unit (ordering, short-circuit, error isolation, per-route
   disable, options passing, directory loading incl. broken fixtures);
   total unit 87.
+
+## Phase 12 — observability
+
+- `apps/gateway/src/metrics.ts`: bounded in-memory metrics — labeled
+  counters, latency ring buffers with p50/p95/p99, series cap with oldest
+  eviction (cardinality explosions degrade instead of OOMing). Well-known
+  series names for the pipeline. Prometheus exposition out of scope for v1
+  (documented).
+- `apps/gateway/src/health.ts`: unconditional liveness; readiness aggregating
+  DB + Redis checks (503 when degraded) with config version and uptime.
+- Tests: 7 unit (counters, quantiles, bounds, reset, liveness, readiness
+  ok/degraded); total unit 94.
