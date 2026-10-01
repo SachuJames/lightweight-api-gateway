@@ -29,7 +29,10 @@ Route `upstreamUrl` values are validated at creation/update time: hostnames
 that resolve to private, loopback, or link-local IPs are rejected, since a
 route creator could otherwise make the gateway probe internal infrastructure.
 `SSRF_DEV_ALLOWLIST` exists only for local development (the compose hostnames);
-leave it empty in production.
+leave it empty in production. Note the DNS check happens at route-write time,
+not per request: a hostname that later resolves to a new address (DNS
+rebinding) is not re-checked, so point routes at stable infrastructure you
+control.
 
 ## Request hardening
 
