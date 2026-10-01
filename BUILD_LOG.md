@@ -140,3 +140,16 @@ Nothing here is aspirational: every claim below was observed.
 - Tests: 3 integration (two instances converge on one notification, stale +
   malformed ignored, poll backstop catches a missed message); total
   integration 19.
+
+## Phase 11 — plugin system
+
+- `apps/gateway/src/plugins.ts`: framework-free plugin API with `onRequest`
+  (mutable headers, short-circuit responses), `onResponse`, `onError` hooks.
+  `PluginManager`: registration with validation + duplicate rejection, ordered
+  execution, per-route enable/disable via `route.pluginConfig`, per-plugin
+  options in context, hook error isolation (a throwing plugin never breaks the
+  pipeline), directory loading of `.js` modules with per-file failure reports.
+  Ships an example `add-header` plugin factory.
+- Tests: 10 unit (ordering, short-circuit, error isolation, per-route
+  disable, options passing, directory loading incl. broken fixtures);
+  total unit 87.
