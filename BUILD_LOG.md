@@ -173,3 +173,21 @@ Nothing here is aspirational: every claim below was observed.
   `auth.login`), actor + request id context, before/after payloads. Backed by
   the append-only `audit_logs` table from Phase 5.
 - Tests: 2 unit (field mapping, optional-field handling); total unit 96.
+
+## Phase 14 — admin API
+
+- `apps/gateway/src/admin.ts`: full REST admin API — login, route CRUD,
+  rate-limit/circuit policy CRUD, user management (admin-only, no self-delete),
+  audit log query, config version + reload trigger, metrics snapshot. RBAC:
+  viewer read-only, operator read + reload, admin full. Mutations are
+  transactional (write + version bump + audit) and publish a reload
+  notification afterwards. Zod validation errors -> 400 with issue details;
+  unknown policy refs -> 422; referenced policy delete -> 409. JSON 404s.
+- `apps/gateway/src/db/policies.ts`: policy CRUD repositories. Fixed a real
+  bug found by tests: `RETURNING (cols)` returns one composite column;
+  changed to `RETURNING cols`.
+- `packages/shared-types`: `ErrorBody` gains optional `details`;
+  `GatewayError` accepts details.
+- Tests: 12 integration (auth, RBAC, route validation, policy ref guard,
+  audit trail, reload notification over pub/sub, users); totals unit 96,
+  integration 31.

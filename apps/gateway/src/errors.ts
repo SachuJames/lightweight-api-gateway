@@ -30,13 +30,21 @@ export class GatewayError extends Error {
   readonly code: ErrorCode;
   readonly statusCode: number;
   readonly failureKind: UpstreamFailureKind;
+  readonly details?: unknown;
 
-  constructor(code: ErrorCode, statusCode: number, message: string, failureKind: UpstreamFailureKind = 'none') {
+  constructor(
+    code: ErrorCode,
+    statusCode: number,
+    message: string,
+    failureKind: UpstreamFailureKind = 'none',
+    details?: unknown,
+  ) {
     super(message);
     this.name = 'GatewayError';
     this.code = code;
     this.statusCode = statusCode;
     this.failureKind = failureKind;
+    this.details = details;
   }
 }
 
@@ -44,7 +52,14 @@ export function toErrorResponse(err: unknown, requestId: string): { statusCode: 
   if (err instanceof GatewayError) {
     return {
       statusCode: err.statusCode,
-      body: { error: { code: err.code, message: err.message, requestId } },
+      body: {
+        error: {
+          code: err.code,
+          message: err.message,
+          requestId,
+          ...(err.details !== undefined ? { details: err.details } : {}),
+        },
+      },
     };
   }
   return {

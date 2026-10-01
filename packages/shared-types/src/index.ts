@@ -48,5 +48,6 @@ export interface ErrorBody {
     code: string;
     message: string;
     requestId: string;
+    details?: unknown;
   };
 }

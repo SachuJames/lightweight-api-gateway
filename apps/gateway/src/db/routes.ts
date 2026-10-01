@@ -79,24 +79,23 @@ export async function insertRoute(client: DbClient, input: RouteInput): Promise<
   return rowToRoute(row);
 }
 
-export type RoutePatch = Partial<
-  Pick<
-    RouteInput,
-    | 'name'
-    | 'pathPattern'
-    | 'methods'
-    | 'upstreamUrl'
-    | 'enabled'
-    | 'priority'
-    | 'authRequired'
-    | 'rateLimitPolicyId'
-    | 'circuitBreakerPolicyId'
-    | 'timeoutMs'
-    | 'pluginConfig'
-  >
->;
+export type RoutePatchKey =
+  | 'name'
+  | 'pathPattern'
+  | 'methods'
+  | 'upstreamUrl'
+  | 'enabled'
+  | 'priority'
+  | 'authRequired'
+  | 'rateLimitPolicyId'
+  | 'circuitBreakerPolicyId'
+  | 'timeoutMs'
+  | 'pluginConfig';
 
-const PATCH_COLUMNS: Record<keyof RoutePatch, string> = {
+/** Patch with explicit-undefined tolerance (zod `.partial()` output). */
+export type RoutePatch = { [K in RoutePatchKey]?: RouteInput[K] | undefined };
+
+const PATCH_COLUMNS: Record<RoutePatchKey, string> = {
   name: 'name',
   pathPattern: 'path_pattern',
   methods: 'methods',
@@ -111,16 +110,15 @@ const PATCH_COLUMNS: Record<keyof RoutePatch, string> = {
 };
 
 export async function updateRoute(client: DbClient, id: string, patch: RoutePatch): Promise<Route | null> {
-  const entries = Object.entries(patch).filter(([, v]) => v !== undefined);
-  if (entries.length === 0) return getRoute(client, id);
-
   const sets: string[] = [];
   const values: unknown[] = [];
-  for (const [key, value] of entries) {
-    const column = PATCH_COLUMNS[key as keyof RoutePatch];
+  for (const [key, value] of Object.entries(patch)) {
+    const column = PATCH_COLUMNS[key as RoutePatchKey];
+    if (value === undefined || column === undefined) continue;
     values.push(key === 'upstreamUrl' ? normalizeUpstreamUrl(value as string) : value);
     sets.push(`${column} = $${values.length}`);
   }
+  if (sets.length === 0) return getRoute(client, id);
   values.push(id);
   const res = await client.query<RouteRow>(
     `UPDATE routes SET ${sets.join(', ')}, version = version + 1, updated_at = now()
