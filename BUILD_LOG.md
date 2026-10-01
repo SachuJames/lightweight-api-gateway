@@ -128,3 +128,15 @@ Nothing here is aspirational: every claim below was observed.
   counting toggle, breaker reset when the policy id changes, per-route
   isolation.
 - Tests: 10 unit with an injectable clock; total unit 77.
+
+## Phase 10 — zero-downtime reconfiguration
+
+- `apps/gateway/src/reload.ts`: `notifyConfigChange()` publishes
+  `{version}` on `gateway:config:reload`; `ConfigReloader` subscribes per
+  instance, refreshes + atomically swaps the snapshot only when behind,
+  ignores malformed/stale messages, and polls the DB version every 15s as a
+  backstop for missed messages. In-flight requests finish on the old snapshot;
+  new requests see the new one.
+- Tests: 3 integration (two instances converge on one notification, stale +
+  malformed ignored, poll backstop catches a missed message); total
+  integration 19.
