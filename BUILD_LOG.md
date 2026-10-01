@@ -52,3 +52,15 @@ Nothing here is aspirational: every claim below was observed.
 - Tests: 13 proxy tests pass (GET/POST, headers, query, body streaming,
   status passthrough, timeout, refused, oversized, 404, concurrency) against a
   real local upstream. Total unit: 20 passed.
+
+## Phase 4 — routing engine
+
+- `apps/gateway/src/routing.ts`: pattern compiler (`:param`, trailing `/*`,
+  static segments) with deterministic ordering: priority, then specificity
+  (static > param > wildcard), then pattern length, then route id. Path
+  forwarding strips the static prefix (`/api/users/*` + `/api/users/123` ->
+  `/123`); query strings preserved; trailing slashes tolerated. Zod input
+  schema validates name/pattern/methods/upstream/timeout/policies; upstream
+  must be http(s). Bare `/` is not a valid pattern (use `/*`).
+- Tests: 28 pass (matching, params, stripping, query, priority, specificity,
+  determinism, validation rejections).
