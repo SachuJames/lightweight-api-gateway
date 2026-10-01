@@ -92,3 +92,15 @@ Nothing here is aspirational: every claim below was observed.
   never sees a half-loaded config). `CompiledRoute` is now exported.
 - Tests: 2 unit tests (snapshot load from a stub client, atomic swap
   semantics); total unit 50 pass.
+
+## Phase 7 — JWT auth and RBAC
+
+- `apps/gateway/src/auth.ts`: bcrypt password hashing, HS256 JWTs via jose
+  (`sub`/`email`/`role`, configurable TTL), `authenticateUser` (constant-time
+  safe bcrypt compare, generic 401 message), `extractBearerToken`,
+  Fastify `onRequest` hook attaching `request.authUser` (public paths:
+  `/health`, `/ready`, `/api/auth/login`), `requireAuth` and
+  `requireRole(...)` pre-handlers. Errors use stable codes
+  `AUTHENTICATION_ERROR` / `AUTHORIZATION_ERROR`.
+- Tests: 12 pass (hash/verify, token round-trip, wrong-secret, expiry,
+  garbage token, bearer parsing, login success/failure); total unit 62.
