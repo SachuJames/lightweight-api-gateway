@@ -28,5 +28,6 @@
     "tls:generate": "bash scripts/generate-dev-certs.sh",
     "typecheck": "pnpm -r --if-present typecheck"
   },
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "license": "MIT"
 }

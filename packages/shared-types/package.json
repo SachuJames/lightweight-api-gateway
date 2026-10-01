@@ -10,5 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "types": "./src/index.ts",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "license": "MIT"
 }

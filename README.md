@@ -94,7 +94,7 @@ Sign in with `admin@example.local` / `admin12345678`, create a route pointing at
 | `pnpm build`                                                | Build all packages                                  |
 | `pnpm typecheck`                                            | TypeScript across the repo                          |
 | `pnpm lint` / `pnpm format:check`                           | ESLint / Prettier                                   |
-| `pnpm test:unit`                                            | 102 gateway unit tests                              |
+| `pnpm test:unit`                                            | 131 gateway unit tests                              |
 | `pnpm test:integration`                                     | 58 integration + e2e tests (needs Postgres + Redis) |
 | `pnpm --filter admin-ui test`                               | 7 admin UI tests                                    |
 | `pnpm --filter gateway perf`                                | Benchmarks; rewrites `docs/performance.md`          |
@@ -116,7 +116,7 @@ docs/                  # documentation
 
 ## Tests
 
-167 tests total (102 unit, 58 integration/e2e, 7 admin UI), all passing,
+196 tests total (131 unit, 58 integration/e2e, 7 admin UI), all passing,
 plus 5 benchmarks. The e2e suite covers the headline guarantee: an 11-step
 zero-downtime route reconfiguration (traffic migrates across an upstream swap
 with zero failed requests, disable/re-enable/delete all take effect without
