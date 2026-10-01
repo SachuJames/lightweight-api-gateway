@@ -1,5 +1,8 @@
 # Lightweight API Gateway
 
+[![CI](https://github.com/SachuJames/lightweight-api-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/SachuJames/lightweight-api-gateway/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A production-style API gateway in TypeScript: reverse proxy, routing engine,
 JWT auth with RBAC, Redis token-bucket rate limiting, per-route circuit
 breakers, a plugin system, versioned zero-downtime config reloads, and a
