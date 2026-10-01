@@ -300,3 +300,28 @@ Nothing here is aspirational: every claim below was observed.
   routes at 127.0.0.1 or add /etc/hosts entries).
 - Verified live: all four /health endpoints, users list, slow delay timing
   (600ms), failing returning 500.
+
+## Phase 19 — Docker
+
+- `docker/gateway/Dockerfile`: multi-stage (node:24-alpine). Builder installs
+  the pnpm workspace, compiles the gateway, and `pnpm deploy`s a prod-only
+  bundle; runner is a non-root `gateway` user with a `/health` HEALTHCHECK.
+  `docker/gateway/entrypoint.sh` runs migrations, optionally seeds
+  (`SEED_ON_START`), then starts the gateway. Notable: the gateway imports
+  `@gateway/shared-types` as types only, so the runtime bundle needs no
+  compiled shared package.
+- `docker/admin/Dockerfile` + `docker/admin/nginx.conf`: builds the Vite SPA
+  (`VITE_API_BASE_URL` as a build arg) and serves it via nginx with SPA
+  fallback, a `/health` probe, and immutable caching for hashed assets.
+- `docker/upstreams/Dockerfile`: one parameterized Dockerfile for the four
+  example upstreams (`SERVICE` build arg), non-root `upstream` user,
+  `/health` HEALTHCHECK.
+- `docker-compose.yml`: postgres 16 + redis 7 (both with healthchecks and
+  persistent volumes), gateway (waits for healthy deps, migrates + seeds on
+  start), admin UI on :3000, and the four upstreams on :3001-3004. Service
+  names match the seeded route upstream hostnames. Dev-only secrets are
+  labeled as such in comments.
+- Root scripts: `docker:build`, `docker:up`, `docker:down`.
+- Honest limitation: no container runtime in this environment, so the images
+  were NOT built or run here; `docker compose config` validates the file and
+  the compose comments say so.

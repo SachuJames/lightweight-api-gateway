@@ -72,13 +72,12 @@ async function main(): Promise<void> {
     }
   }
 
-  const tls =
-    config.tlsEnabled
-      ? {
-          key: await readFile(config.tlsKeyPath),
-          cert: await readFile(config.tlsCertPath),
-        }
-      : undefined;
+  const tls = config.tlsEnabled
+    ? {
+        key: await readFile(config.tlsKeyPath),
+        cert: await readFile(config.tlsCertPath),
+      }
+    : undefined;
 
   const app = await buildServer({
     config,

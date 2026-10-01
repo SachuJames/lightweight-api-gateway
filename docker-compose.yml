@@ -1,0 +1,128 @@
+# Local development / demo stack for the lightweight API gateway.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:3000 (admin UI) and use the gateway at
+# http://localhost:8080. The seeded admin login is
+# admin@example.local / admin123 (override ADMIN_PASSWORD in production).
+#
+# NOTE: the images below were not built or run in this repository's dev
+# environment (no container runtime there); only `docker compose config`
+# validation was performed. Expect the first `up` to take a few minutes.
+
+name: lightweight-api-gateway
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gateway
+      # Dev-only default. Set POSTGRES_PASSWORD in production.
+      POSTGRES_PASSWORD: gateway
+      POSTGRES_DB: gateway
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gateway -d gateway']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/gateway/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      DATABASE_URL: postgres://gateway:gateway@postgres:5432/gateway
+      REDIS_URL: redis://redis:6379
+      # Dev-only default. Generate a real secret in production.
+      JWT_SECRET: dev-only-secret-not-for-production-use
+      SEED_ON_START: 'true'
+      ADMIN_EMAIL: admin@example.local
+      ADMIN_PASSWORD: admin123
+    ports:
+      - '8080:8080'
+
+  admin:
+    build:
+      context: .
+      dockerfile: docker/admin/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    ports:
+      - '3000:80'
+
+  users-service:
+    build:
+      context: .
+      dockerfile: docker/upstreams/Dockerfile
+      args:
+        SERVICE: users
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+    ports:
+      - '3001:3001'
+
+  orders-service:
+    build:
+      context: .
+      dockerfile: docker/upstreams/Dockerfile
+      args:
+        SERVICE: orders
+    restart: unless-stopped
+    environment:
+      PORT: 3002
+    ports:
+      - '3002:3002'
+
+  slow-service:
+    build:
+      context: .
+      dockerfile: docker/upstreams/Dockerfile
+      args:
+        SERVICE: slow
+    restart: unless-stopped
+    environment:
+      PORT: 3003
+    ports:
+      - '3003:3003'
+
+  failing-service:
+    build:
+      context: .
+      dockerfile: docker/upstreams/Dockerfile
+      args:
+        SERVICE: failing
+    restart: unless-stopped
+    environment:
+      PORT: 3004
+    ports:
+      - '3004:3004'
+
+volumes:
+  pgdata:
+  redisdata:

@@ -9,13 +9,34 @@ const http = require('http');
 const PORT = Number(process.env.PORT ?? 3002);
 
 const orders = new Map([
-  ['1001', { id: '1001', userId: '1', items: [{ sku: 'BOOK-1', qty: 2 }], total: 499.0, status: 'shipped' }],
-  ['1002', { id: '1002', userId: '2', items: [{ sku: 'PEN-3', qty: 5 }], total: 249.5, status: 'processing' }],
+  [
+    '1001',
+    {
+      id: '1001',
+      userId: '1',
+      items: [{ sku: 'BOOK-1', qty: 2 }],
+      total: 499.0,
+      status: 'shipped',
+    },
+  ],
+  [
+    '1002',
+    {
+      id: '1002',
+      userId: '2',
+      items: [{ sku: 'PEN-3', qty: 5 }],
+      total: 249.5,
+      status: 'processing',
+    },
+  ],
 ]);
 
 function json(res, status, body) {
   const payload = JSON.stringify(body);
-  res.writeHead(status, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) });
+  res.writeHead(status, {
+    'content-type': 'application/json',
+    'content-length': Buffer.byteLength(payload),
+  });
   res.end(payload);
 }
 

@@ -4,11 +4,11 @@ Four tiny upstream services with zero dependencies, used by the demo script
 (`scripts/demo.sh`), the seeded database routes, and the Docker Compose setup.
 Each exposes a `GET /health` endpoint and listens on `PORT` (defaults below).
 
-| Service   | Default port | What it does                                            |
-| --------- | ------------ | ------------------------------------------------------- |
-| `users`   | 3001         | In-memory users API: list, get by id, create            |
-| `orders`  | 3002         | In-memory orders API: list (filter by `?userId=`), create |
-| `slow`    | 3003         | Delays every response by `?delay=` ms (timeout testing) |
+| Service   | Default port | What it does                                                  |
+| --------- | ------------ | ------------------------------------------------------------- |
+| `users`   | 3001         | In-memory users API: list, get by id, create                  |
+| `orders`  | 3002         | In-memory orders API: list (filter by `?userId=`), create     |
+| `slow`    | 3003         | Delays every response by `?delay=` ms (timeout testing)       |
 | `failing` | 3004         | Returns 500 for everything except `/health` (breaker testing) |
 
 Run one directly:
