@@ -93,6 +93,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     audit: deps.audit,
     auth: deps.auth,
     metrics: deps.metrics,
+    ssrfDevAllowlist: deps.config.ssrfDevAllowlist,
   });
 
   // SSE analytics stream for operators and admins.

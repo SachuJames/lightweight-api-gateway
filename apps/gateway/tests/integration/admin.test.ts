@@ -53,6 +53,7 @@ beforeAll(async () => {
     audit: new AuditService(pool),
     auth: AUTH,
     metrics: new MetricsRegistry(),
+    ssrfDevAllowlist: ['localhost', 'x', 'users'],
   });
   await app.ready();
 

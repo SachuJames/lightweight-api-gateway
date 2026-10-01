@@ -117,6 +117,7 @@ beforeAll(async () => {
   process.env['DATABASE_URL'] = `postgres://gateway:gateway@localhost:5432/${DB_NAME}`;
   process.env['REDIS_URL'] = REDIS_URL;
   process.env['JWT_SECRET'] = 'test-secret-at-least-32-chars-long!!';
+  process.env['SSRF_DEV_ALLOWLIST'] = '127.0.0.1';
 
   upstreamA = await startUpstream('A');
   upstreamB = await startUpstream('B');

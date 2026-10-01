@@ -42,6 +42,7 @@ import { ErrorCodes, GatewayError, toErrorResponse } from './errors.js';
 import type { MetricsRegistry } from './metrics.js';
 import { notifyConfigChange } from './reload.js';
 import { routeInputSchema } from './routing.js';
+import { assertPublicUpstreamUrl } from './ssrf.js';
 
 /**
  * Admin API.
@@ -59,6 +60,7 @@ export interface AdminDeps {
   audit: AuditService;
   auth: AuthConfig;
   metrics: MetricsRegistry;
+  ssrfDevAllowlist: string[];
 }
 
 const ROLES = ['admin', 'operator', 'viewer'] as const;
@@ -86,7 +88,7 @@ function notFound(resource: string, id: string): GatewayError {
 }
 
 export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
-  const { pool, publisher, store, audit, auth, metrics } = deps;
+  const { pool, publisher, store, audit, auth, metrics, ssrfDevAllowlist } = deps;
 
   registerAuthPlugin(app, auth);
 
@@ -159,6 +161,7 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     { preHandler: [requireRole('admin')] },
     async (req, reply: FastifyReply) => {
       const input = parse(routeInputSchema, req.body);
+      await assertPublicUpstreamUrl(input.upstreamUrl, ssrfDevAllowlist);
       const { result, version } = await mutate(
         req,
         AuditActions.routeCreate,
@@ -189,6 +192,9 @@ export function registerAdminApi(app: FastifyInstance, deps: AdminDeps): void {
     { preHandler: [requireRole('admin')] },
     async (req, reply: FastifyReply) => {
       const patch = parse(routeInputSchema.partial(), req.body);
+      if (patch.upstreamUrl !== undefined) {
+        await assertPublicUpstreamUrl(patch.upstreamUrl, ssrfDevAllowlist);
+      }
       const { result, version } = await mutate(
         req,
         AuditActions.routeUpdate,

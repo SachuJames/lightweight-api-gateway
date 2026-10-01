@@ -156,7 +156,7 @@ describe('benchmarks', () => {
     expect(v.p99Ms).toBeLessThan(1000);
   }, 120_000);
 
-  it('route matching throughput (2000 routes)', async () => {
+  it('route matching throughput (2000 routes)', () => {
     const routes = Array.from({ length: 2000 }, (_, i) =>
       compileRoute({
         id: `svc${i}`,
@@ -231,7 +231,7 @@ describe('benchmarks', () => {
       samples.push(performance.now() - t0);
     }
     results['config_reload'] = summarize(samples);
-    expect(results['config_reload']?.p99Ms).toBeLessThan(10_000);
+    expect(results['config_reload'].p99Ms).toBeLessThan(10_000);
   }, 120_000);
 
   it('100 concurrent clients through the gateway', async () => {
@@ -271,7 +271,6 @@ function writeReport(): void {
   const out = path.resolve(here, '../../../../docs/performance.md');
   mkdirSync(path.dirname(out), { recursive: true });
 
-  const cpu = machineInfo();
   const lines = [
     '# Performance',
     '',
