@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+coverage/
+.nyc_output/
+.env
+.env.local
+.local/
+*.log
+*.pem
+*.key
+*.crt
+*.p12
+.DS_Store
+.vite/
+dist-ssr/
+*.tsbuildinfo
