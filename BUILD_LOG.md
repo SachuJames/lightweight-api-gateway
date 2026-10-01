@@ -104,3 +104,17 @@ Nothing here is aspirational: every claim below was observed.
   `AUTHENTICATION_ERROR` / `AUTHORIZATION_ERROR`.
 - Tests: 12 pass (hash/verify, token round-trip, wrong-secret, expiry,
   garbage token, bearer parsing, login success/failure); total unit 62.
+
+## Phase 8 — Redis and rate limiting
+
+- `apps/gateway/src/redis.ts`: ioredis client factory (lazy connect,
+  background retries), `checkRedis` health check. Note: ioredis v6 exports a
+  named `Redis` class, not a default export.
+- `apps/gateway/src/rate-limit.ts`: atomic token-bucket in Lua
+  (shared across instances), key strategies `ip` / `user` / `route_ip` /
+  `route_user` (matching shared-types), fail-open returns a `degraded` result,
+  fail-closed throws `REDIS_ERROR` 503, misconfigured policy throws
+  `CONFIGURATION_ERROR`.
+- Tests: 5 unit (key resolution) + 7 integration against real Redis
+  (capacity/deny, refill, bucket isolation, fail-open, fail-closed,
+  misconfigured policy); totals: unit 67, integration 16.
