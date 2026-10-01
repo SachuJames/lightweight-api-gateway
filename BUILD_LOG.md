@@ -286,3 +286,17 @@ Nothing here is aspirational: every claim below was observed.
   which locked out admins. Fixed properly with a role hierarchy in `auth.ts`:
   viewer < operator < admin, so `requireRole('operator')` admits operators and
   admins. Added 6 unit tests; now 102 unit + 42 integration, all passing.
+
+## Phase 20 — example upstream services
+
+- `examples/upstreams/{users,orders,slow,failing}/server.js`: zero-dependency
+  Node http servers, each with `GET /health`, listening on `PORT`
+  (3001-3004 by default, matching the seeded gateway routes' ports).
+  users/orders are small in-memory CRUD-ish APIs; slow honors `?delay=` ms
+  (timeout testing); failing returns 500 for everything but /health
+  (circuit-breaker testing).
+- `examples/upstreams/README.md` documents how to run them and how they map
+  to the seeded routes (seed uses Compose hostnames; for local runs point the
+  routes at 127.0.0.1 or add /etc/hosts entries).
+- Verified live: all four /health endpoints, users list, slow delay timing
+  (600ms), failing returning 500.
